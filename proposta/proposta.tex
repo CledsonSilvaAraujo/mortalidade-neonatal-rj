@@ -1,0 +1,137 @@
+\documentclass[12pt]{article}
+
+\usepackage{sbc-template}
+\usepackage[brazil]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{url,amsmath,booktabs}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\nomeautor}{Cledson da Silva Araújo}
+
+\sloppy
+
+\title{Proposta de Projeto de Aplicação\\
+Predição de mortalidade neonatal no estado do Rio de Janeiro\\
+com dados abertos do SINASC e do SIM}
+
+\author{\nomeautor\inst{1}}
+
+\address{Instituto de Computação -- Universidade Federal Fluminense (UFF)\\
+  Niterói -- RJ -- Brasil\\[2mm]
+  Disciplina: Introdução ao Aprendizado de Máquina para a Saúde (2026.2)\\
+  Prof. Flávio Luiz Seixas}
+
+\begin{document}
+
+\maketitle
+
+% ---------------------------------------------------------------------------
+\section{Tema e motivação}
+
+A mortalidade neonatal (óbito de 0 a 27 dias de vida) responde pela maior parte da mortalidade infantil no Brasil e concentra-se em causas evitáveis ligadas à assistência na gestação e no parto. Um escore de risco calculado automaticamente a partir da Declaração de Nascido Vivo (DN) pode priorizar leitos de UTI neonatal, visitas domiciliares na primeira semana e a regulação de gestantes de alto risco.
+
+\section{Artigo de referência}
+
+\textbf{Batista et al. (2021)} \cite{batista2021}, \textit{Neonatal mortality prediction with routinely collected data: a machine learning approach}, BMC Pediatrics 21:322.
+
+Os autores fizeram o linkage probabilístico entre o SINASC e o SIM do município de São Paulo, com dados identificados cedidos pela prefeitura. A coorte tinha 1.128.162 nascidos vivos em 2012--2017 e 7.282 óbitos neonatais. As 23 variáveis da DN foram usadas para treinar cinco algoritmos, com treino em 2012--2016 e teste em 2017. O melhor foi o XGBoost, com AUROC 0,971, AUPRC 0,586 e F1 0,548. Os 5\% de maior risco concentraram mais de 90\% dos óbitos, e as variáveis mais importantes foram Apgar, peso, anomalia congênita e idade gestacional.
+
+\textbf{Lacunas.}
+\begin{itemize}
+  \item O estudo usa uma única cidade e dados identificados, o que impede a reprodução por terceiros.
+  \item O modelo depende de variáveis que só existem depois do parto (Apgar, peso).
+  \item Não avalia calibração nem desempenho por subgrupo. Essas duas lacunas também são apontadas pela revisão sistemática de \cite{mangold2021}: só 45\% dos estudos reportam calibração e 18\% fazem validação externa.
+\end{itemize}
+
+\section{Perguntas de pesquisa e hipóteses}
+
+\begin{enumerate}
+  \item \textbf{Reprodução com dados abertos.} O desempenho do artigo se mantém no estado do RJ usando apenas microdados públicos, sem nenhum identificador? \textit{H1: AUROC $\geq$ 0,95 no modelo completo.}
+  \item \textbf{Risco antes do parto.} Quanto se perde com um modelo que usa só o que se sabe na admissão para o parto (mãe, gestação e pré-natal, sem Apgar, peso nem anomalia)? \textit{H2: queda substancial de AUROC, com o modelo ainda útil para triagem.}
+  \item \textbf{Calibração e equidade.} O desempenho e a calibração variam por raça/cor e escolaridade da mãe e entre capital e interior? \textit{H3: a calibração piora nos subgrupos de menor escolaridade.}
+\end{enumerate}
+
+\section{Dados}
+
+\begin{itemize}
+  \item \textbf{Fontes:} microdados públicos do SINASC (nascidos vivos) e do SIM (óbitos), por residência no RJ, obtidos no FTP do DATASUS sem cadastro \cite{datasus}. O download é automatizado.
+  \item \textbf{Período:} 1.397.216 nascidos vivos em 2017--2023 e óbitos de 2017--2024. O ano de 2024 entra para captar óbitos de nascidos em dezembro de 2023.
+  \item \textbf{Desfecho:} óbito não fetal com 0--27 dias de vida.
+\end{itemize}
+
+\textbf{Linkage sem identificadores.} Os arquivos públicos não trazem o número da DN. Porém, a Declaração de Óbito de menores de 1 ano repete dados do nascimento. Cada óbito é pareado a um nascido vivo por concordância exata em seis chaves compostas em cascata:
+\begin{itemize}
+  \item a mais restritiva é data de nascimento + sexo + município + peso + idade da mãe + semanas de gestação + tipo de gravidez + tipo de parto;
+  \item as seguintes toleram campos ausentes;
+  \item em todas, só se aceitam pares 1:1.
+\end{itemize}
+
+Os resultados do linkage já foram verificados:
+\begin{itemize}
+  \item 10.849 dos 12.039 óbitos neonatais do período foram pareados (\textbf{90,1\%}, entre 88,5\% e 91,6\% conforme o ano).
+  \item Esse percentual é comparável aos 90,8\% obtidos com dados identificados nas capitais brasileiras \cite{maia2017}.
+  \item A fração de falsos pares, estimada por um modelo de mistura sobre campos fora das chaves, é de 6--8\% nas duas chaves principais.
+\end{itemize}
+Essa estimativa usa a escolaridade da mãe e as perdas fetais anteriores, tomando como referência a passada completa e pares aleatórios.
+
+\section{Método}
+
+\begin{itemize}
+  \item \textbf{Conjuntos de variáveis:}
+    \begin{itemize}
+      \item (A) \textit{completo}: as 28 variáveis da DN, como no artigo;
+      \item (B) \textit{pré-parto}: 17 variáveis da mãe, da gestação e do pré-natal (idade gestacional, consultas, índice de Kotelchuck, histórico obstétrico).
+    \end{itemize}
+  \item \textbf{Modelos:} regressão logística (linha de base interpretável), XGBoost (modelo do artigo) \cite{chen2016} e LightGBM \cite{ke2017}.
+  \item \textbf{Validação temporal}, como no artigo:
+    \begin{itemize}
+      \item ajuste em 2017--2021;
+      \item escolha de hiperparâmetros por otimização bayesiana (Optuna/TPE) \cite{akiba2019}, com \textit{early stopping} e recalibração isotônica em 2022;
+      \item teste único, intocado, em 2023.
+    \end{itemize}
+  \item \textbf{Desbalanceamento} (prevalência de $\approx$0,8\%): o peso de classe é tratado como hiperparâmetro. Não se usa sobreamostragem, para preservar a calibração.
+\end{itemize}
+
+\section{Avaliação}
+
+\begin{itemize}
+  \item \textbf{Métricas}, com IC 95\% por bootstrap estratificado:
+    \begin{itemize}
+      \item AUROC e AUPRC;
+      \item F1, precisão, sensibilidade e especificidade no limiar escolhido na validação;
+      \item escore de Brier e razão observado/esperado;
+      \item fração dos óbitos entre os 5\% de maior risco, métrica comparável ao artigo.
+    \end{itemize}
+  \item \textbf{Comparações:} $\Delta$AUROC e $\Delta$AUPRC entre (A) e (B) e entre XGBoost e regressão logística, por bootstrap pareado.
+  \item \textbf{Interpretação e subgrupos:} valores SHAP \cite{lundberg2017}, comparados ao ranking do artigo, e curvas de calibração por subgrupo.
+  \item \textbf{Sensibilidade ao linkage:} repetição do modelo usando só as duas chaves mais restritivas.
+\end{itemize}
+
+\section{Entregas e cronograma}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Etapa & Situação \\
+\midrule
+Download, linkage e base analítica & concluído \\
+Modelos, ajuste de hiperparâmetros e avaliação & concluído \\
+README (Parte 1) e notebook comentado (Parte 2) & concluído \\
+Relatório no formato SBC ($\leq$ 12 páginas) & concluído \\
+Apresentação (15 min + 5 de perguntas) & slides prontos \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Limitações previstas.}
+\begin{itemize}
+  \item Cerca de 10\% dos óbitos não são pareados. Eles ficam rotulados como sobreviventes, o que tende a subestimar o desempenho.
+  \item Os falsos pares introduzem ruído no rótulo.
+  \item O modelo pré-parto usa a idade gestacional do parto, que é uma aproximação da estimativa disponível na admissão.
+\end{itemize}
+
+\bibliographystyle{sbc}
+\bibliography{refs}
+
+\end{document}
