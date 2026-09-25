@@ -18,3 +18,10 @@ proposta/*.fls
 proposta/*.fdb_latexmk
 proposta/*.out
 .pytest_cache/
+relatorio_v2/*.aux
+relatorio_v2/*.log
+relatorio_v2/*.bbl
+relatorio_v2/*.blg
+relatorio_v2/*.fls
+relatorio_v2/*.fdb_latexmk
+relatorio_v2/*.out

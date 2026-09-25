@@ -12,6 +12,7 @@ Aluno: Cledson da Silva Araújo.
 - **Slides (16, com notas do apresentador, ~14 min de fala):** [`slides/apresentacao.pptx`](slides/apresentacao.pptx).
 - **Apresentação do tema (modelo .odp da disciplina):** [`slides/apresentacao_tema.odp`](slides/apresentacao_tema.odp).
 - **Roteiro de arguição:** [`slides/arguicao.md`](slides/arguicao.md).
+- **Versão 2 (aprofundamento para publicação):** relatório [`relatorio_v2/main.pdf`](relatorio_v2/main.pdf) e notebook [`notebook/mortalidade_neonatal_rj_v2.ipynb`](notebook/mortalidade_neonatal_rj_v2.ipynb); resumo na [seção 6](#6-versão-2-aprofundamento-para-publicação). A v1 está na tag `v1.0`.
 - **Repositório:** <https://github.com/CledsonSilvaAraujo/mortalidade-neonatal-rj>.
 
 ---
@@ -365,7 +366,26 @@ O projeto usa o SHAP exato (TreeSHAP), com a decomposição logit p̂ = φ₀ + 
   - estudo das diferenças regionais e anuais de calibração;
   - avaliação de impacto com gestores.
 
-## 6. Reprodução
+## 6. Versão 2: aprofundamento para publicação
+
+A v1 (seções 1–5, tag `v1.0`) é o projeto da disciplina. A v2 mantém tudo e responde às perguntas que um revisor de revista faria. O código está em `src/aprofundamento.py`, e os resultados, em [`relatorio_v2/main.pdf`](relatorio_v2/main.pdf) (seção 6) e na seção 6 do notebook v2. Todas as análises usam os hiperparâmetros da v1 e o mesmo teste de 2024, com Δ por bootstrap pareado.
+
+| # | Pergunta | Resultado |
+|---|---|---|
+| Q1 | Um escore simples faz o mesmo que o XGBoost? | Regressão logística com peso + IG + Apgar 5: AUROC 0,947. Com anomalia: **0,960**, a 0,005 (0,002 a 0,007) do XGBoost. O ganho do XGBoost está na AUPRC (0,522 contra 0,603). |
+| Q2 | Há vazamento na DN? | **Não há evidência.** 10% dos óbitos tiveram a DN declarada depois do óbito. No dia 0, a AUROC foi 0,990 (declarada depois) contra 0,988 (antes). As diferenças em 1–6 dias aparecem também no modelo B, sem Apgar nem anomalia, o que indica gravidade. |
+| Q3 | A pandemia distorce o treino? | Não. Sem 2020–2021: ΔAUROC −0,0001 (−0,0010 a 0,0007) (A) e −0,0014 (−0,0045 a 0,0014) (B). |
+| Q4 | O desempenho depende das variáveis de chave do linkage? | No A, pouco: ΔAUROC −0,0081 (−0,0107 a −0,0057), mas a AUPRC cai −0,1110 (−0,1292 a −0,0955). No B, muito (AUROC 0,801), porque sai a idade gestacional. |
+| Q5 | A calibração se degrada no tempo? | A AUROC é estável (0,955–0,964 em A). O modelo congelado desde 2018 chega a O/E 0,91 em 2024. É preciso **recalibrar todo ano**. |
+| Q6 | O linkage e o estimador de falsos pares acertam? | Na simulação com padrão-ouro, a cascata erra pouco quando a DN existe: 0,4% de falsos pares no ruído alto. Com 5–10% das DN ausentes, a passada 6 chega a 27%–44%. O estimador de mistura serve só como ordem de grandeza. |
+| Q7 | Fellegi–Sunter recupera o resíduo? | Não. Foram aceitos 13 pares, com 54% e 79% de falsos estimados. 726 dos 1.316 óbitos restantes têm todos os campos e mesmo assim não encontram par, o que aponta para **DN fora da base do estado**. |
+
+**Próximos passos:**
+- parear o resíduo com as DN das UF vizinhas;
+- validar contra uma base identificada (SES-RJ ou CIDACS);
+- fazer a validação externa em outras UFs.
+
+## 7. Reprodução
 
 ```bash
 uv venv .venv -p 3.12 && uv pip install -p .venv -r requirements.txt
@@ -377,6 +397,10 @@ uv venv .venv -p 3.12 && uv pip install -p .venv -r requirements.txt
 .venv/bin/python relatorio/gerar_numeros.py && (cd relatorio && latexmk -pdf main.tex)
 .venv/bin/python relatorio/gerar_readme.py      # README.md a partir de README.tmpl.md
 .venv/bin/python slides/gerar_slides.py
+# v2 (aprofundamento): usa o experimento acima; ~20 min
+.venv/bin/python -m src.aprofundamento                              # ou só algumas partes: ... aprofundamento janelas simulacao
+.venv/bin/jupyter nbconvert --to notebook --execute --inplace notebook/mortalidade_neonatal_rj_v2.ipynb
+.venv/bin/python relatorio_v2/gerar_numeros_v2.py && (cd relatorio_v2 && latexmk -pdf main.tex)
 ```
 
 O período é definido em `src/download.py` (`ANOS_NASCIMENTO`, `ANOS_OBITO`, `PRELIMINARES`) e em `src/preprocess.py` (`ANO_VALIDACAO`, `ANO_TESTE`). Ao mudá-lo, apague `data/base_analitica.parquet` e `data/modelos/` antes de rodar.
@@ -391,6 +415,8 @@ O período é definido em `src/download.py` (`ANOS_NASCIMENTO`, `ANOS_OBITO`, `P
 | `src/complementares.py` | viés do linkage, sensibilidade, calibração, curva de decisão, premissas |
 | `src/explicabilidade.py` | XAI: SHAP exato, dependência, explicações locais, estabilidade, atributos sensíveis |
 | `src/experimento.py` | experimento completo → `data/resultados.pkl` |
+| `src/aprofundamento.py` | v2: baseline clínico, vazamento, pandemia, chaves, janelas, simulação de padrão-ouro, Fellegi–Sunter → `data/resultados_v2.pkl` |
+| `relatorio_v2/gerar_numeros_v2.py` | macros, tabelas e figuras `v2_*` do relatório v2 |
 | `manifesto_dados.csv` | URL, situação, tamanho, SHA-256 e data de cada arquivo do DATASUS |
 | `relatorio/gerar_numeros.py` | macros LaTeX (e `macros.json`) com os números |
 | `relatorio/gerar_readme.py` | preenche este README a partir das mesmas macros |

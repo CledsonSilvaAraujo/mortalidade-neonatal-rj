@@ -10,11 +10,15 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 MACROS = json.loads((RAIZ / "relatorio" / "macros.json").read_text(encoding="utf-8"))
+# Macros da v2 (aprofundamento), escritas por relatorio_v2/gerar_numeros_v2.py.
+_V2 = RAIZ / "relatorio_v2" / "macros_v2.json"
+if _V2.exists():
+    MACROS.update(json.loads(_V2.read_text(encoding="utf-8")))
 
 
 def markdown(v: str) -> str:
     v = re.sub(r"\\times 10\^\{-(\d+)\}", r"×10⁻\1", v)
-    v = v.replace("\\%", "%").replace("~", " ").replace("--", "–")
+    v = v.replace("\\%", "%").replace("~", " ").replace("--", "–").replace("$-$", "−")
     return v.replace("-0,", "−0,").replace("(-", "(−").replace(" -", " −")
 
 
