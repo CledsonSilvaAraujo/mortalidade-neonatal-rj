@@ -7,7 +7,9 @@ Aluno: Cledson da Silva Araújo.
 - **Documentação (Parte 1):** este arquivo.
 - **Demonstração (Parte 2):** [`notebook/mortalidade_neonatal_rj.ipynb`](notebook/mortalidade_neonatal_rj.ipynb).
 - **Relatório (formato SBC, 12 páginas):** [`relatorio/main.pdf`](relatorio/main.pdf).
-- **Slides (13, com notas do apresentador):** [`slides/apresentacao.pptx`](slides/apresentacao.pptx).
+- **Slides (14, com notas do apresentador):** [`slides/apresentacao.pptx`](slides/apresentacao.pptx).
+- **Apresentação do tema (modelo .odp da disciplina):** [`slides/apresentacao_tema.odp`](slides/apresentacao_tema.odp).
+- **Repositório:** <https://github.com/CledsonSilvaAraujo/mortalidade-neonatal-rj>.
 
 ---
 
@@ -29,7 +31,7 @@ Lacunas do artigo:
 **Perguntas de pesquisa**
 1. O desempenho se reproduz no estado do RJ **só com microdados públicos**, que não têm identificadores? (H1: AUROC ≥ 0,95)
 2. Quanto se perde com um modelo **pré-parto**, que usa apenas o que se sabe na admissão? (H2: queda substancial, com o modelo ainda útil)
-3. O modelo é **calibrado e equitativo** por raça/cor e escolaridade da mãe e entre capital e interior? (H3: pior na baixa escolaridade)
+3. O modelo é **calibrado e equitativo** por raça/cor e escolaridade da mãe e entre capital e interior? (H3: **a calibração** piora nos subgrupos de menor escolaridade)
 
 ## 2. Dataset
 
@@ -68,8 +70,34 @@ Duas chaves mais tolerantes foram testadas e **descartadas** por excesso de fals
 
 **Resultado do linkage**
 - **10.849 de 12.039 óbitos pareados (90,1%)**, entre 88,5% e 91,6% conforme o ano.
-- Maia et al. (2017), com dados **identificados** das capitais, obtiveram 90,8%.
+- Descontados os falsos pares estimados (média ponderada de 6%), cerca de **85% dos óbitos têm um par verdadeiro**.
+- **Premissa da estimativa:** a passada 1 (chave completa, 8 campos) não tem falsos pares. Se tiver, as demais estimativas estão subestimadas.
+- Pareamento por região: **94,3% na capital** e **88,0% no interior**. Por raça/cor do recém-nascido (DO), vai de 89,1% a 90,5%.
+- A comparação com Maia et al. (2017) exige cautela: eles tiveram 90,8% nas capitais (93,1% nas capitais do Sudeste), mas com óbitos **infantis** e dados **identificados**.
 - A taxa de mortalidade neonatal na base pareada é de 7,76‰, contra 8,62‰ no SIM.
+
+**Quem fica sem par** (`src/complementares.py`, comparação pelas informações da própria DO):
+
+| Na Declaração de Óbito | Pareados | Não pareados |
+|---|---|---|
+| n | 10.849 | 1.190 |
+| Peso ausente | 0,8% | 26,7% |
+| Semanas de gestação ausentes | 4,9% | 31,6% |
+| Idade da mãe ausente | 2,1% | 32,5% |
+| Peso mediano | 1.100 g | 1.408 g |
+| Residente na capital | 35,2% | 19,6% |
+| Óbito em hospital | 98,2% | 90,0% |
+
+- Os não pareados são óbitos com campos das chaves ausentes na DO: só 21% dos óbitos sem peso foram pareados.
+- Eles são menos extremos (peso maior) e mais do interior, e viram falsos "sobreviventes".
+- Isso **não** tornou a ausência na DN um sinal de sobrevivência: na base pareada, a TMN é **maior** quando o campo falta (seção 3.5).
+
+### 2.4 Versão dos dados e aspectos éticos
+
+- **Versão:** [`manifesto_dados.csv`](manifesto_dados.csv) registra, para cada arquivo, URL, tamanho, **SHA-256** e data do download (24/09/2026). Gerado por `download.manifesto()`.
+- **Situação dos dados:** todos são **definitivos**. Os preliminares do SIM (`SIM/PRELIM/DORES`) só começam em 2025.
+- **Ética:** os dados são públicos e sem identificação nominal, o que dispensa CEP/Conep (Res. CNS 510/2016, art. 1º, parágrafo único).
+- **Risco de reidentificação:** o próprio linkage cria esse risco, porque data, sexo, peso e município tornam o registro quase único. Por isso, o repositório publica o código, mas **não a base pareada** (`data/` está no `.gitignore`).
 
 ### 2.3 Preparação dos dados (`src/preprocess.py`)
 
@@ -114,7 +142,7 @@ Duas chaves mais tolerantes foram testadas e **descartadas** por excesso de fals
 ### 3.1 Conjuntos de variáveis
 
 - **(A) Completo, 28 variáveis:** as da DN, como no artigo.
-- **(B) Pré-parto, 17 variáveis:** o que se sabe **na admissão para o parto**.
+- **(B) Pré-parto, 17 variáveis:** o que se sabe **na admissão para o parto**. A idade gestacional é a do parto, e consultas e Kotelchuck dependem dela. Por isso, o modelo estima o risco *dado que o parto ocorre agora*; ele **não** serve para triagem semanas antes.
   - Entram: mãe, pai, histórico obstétrico, idade gestacional, gravidez, apresentação, pré-natal, Kotelchuck e capital.
   - Saem: Apgar, peso, anomalia, sexo, local e tipo de parto, indução, cesárea antes do trabalho de parto, quem assistiu e grupo de Robson.
 
@@ -154,6 +182,12 @@ A **validação é temporal**, espelhando o artigo (treino no passado, teste no 
 - **Busca:** otimização bayesiana (Optuna/TPE, semente 42) maximizando a **AUPRC** na validação.
 - **Tentativas:** 15 para o XGBoost e 10 para o LightGBM, com early stopping de 50 árvores.
 
+**Por que essas escolhas:**
+- **Busca curta:** cada ajuste leva ~20 s com 10⁶ registros, e a melhor AUPRC estabilizou antes da metade das tentativas (figura `optuna.png`).
+- **Holdout temporal em vez de validação cruzada:** imita o uso real, de treinar no passado e aplicar no ano seguinte.
+- **Validação reutilizada:** 2022 serve para early stopping, Optuna, isotônica e limiar, então as métricas **de validação** são otimistas. O teste de 2023 continua intocado.
+- **Sem reajuste final com 2017–2022:** 2022 é necessário para a recalibração e o limiar.
+
 XGBoost final:
 
 | | A · completo | B · pré-parto |
@@ -174,11 +208,26 @@ As métricas são calculadas no teste de 2023, com **IC 95% por 500 reamostras b
 - Brier e razão observado/esperado (O/E);
 - **% dos óbitos entre os 5% de maior risco**, métrica comparável ao artigo.
 
-Análises complementares:
+Análises complementares (`src/complementares.py`):
 - ΔAUROC e ΔAUPRC por **bootstrap pareado**;
 - SHAP (`TreeExplainer`) em 20.000 nascimentos de 2023;
 - subgrupos com IC por bootstrap;
-- **sensibilidade ao linkage**, refazendo o modelo só com as passadas 1–2.
+- **intercepto e inclinação de calibração** (Van Calster et al., 2019);
+- **curva de decisão** e benefício líquido (Vickers e Elkin, 2006);
+- **sensibilidade ao linkage**: rótulos alternativos no treino, avaliados no **mesmo** teste de 2023.
+
+### 3.5 Avaliação das premissas
+
+- **Colinearidade (regressão logística):** filhos vivos e gestações anteriores têm VIF de 18 e 17 (gestações ≈ partos + perdas), e partos vaginais anteriores, 6,5; as demais variáveis têm VIF ≤ 3,7.
+  - Isso afeta a interpretação dos coeficientes, não a predição.
+  - A L2 estabiliza o ajuste, e as árvores não dependem dessa premissa. Os coeficientes não são interpretados.
+- **Mecanismo dos ausentes:** a ausência não é aleatória. A TMN é maior quando o campo falta:
+  - consultas de pré-natal: 18,9‰ contra 7,5‰;
+  - Apgar 5: 27,2‰ contra 7,6‰;
+  - idade do pai: 8,8‰ contra 6,6‰.
+
+  Isso é compatível com MAR condicional à assistência ou com MNAR, e é o motivo de usar indicadores e categorias de ausência.
+- **Independência:** gêmeos são 2,4% dos nascimentos e 8,9% dos óbitos. O bootstrap os trata como independentes, o que estreita um pouco os IC. Só entre únicos, a AUROC fica em 0,954 (A) e 0,884 (B), contra 0,956 e 0,890.
 
 ## 4. Avaliação
 
@@ -206,13 +255,33 @@ A tabela completa, com especificidade, VPN, Brier e todos os IC, está em [`figu
 
 **Calibração:**
 - O O/E é de 1,02 (A) e 1,05 (B) após a isotônica, contra 0,99 e 1,02 sem ela.
+- **Intercepto / inclinação:** 0,026 (−0,041 a 0,094) / 0,984 (0,958 a 1,010) no A; 0,063 (0,002 a 0,124) / 0,993 (0,968 a 1,018) no B.
+- O intercepto positivo de B coincide com o *drift*: a TMN subiu de 7,70‰ para 8,20‰ em 2023, e ln(8,20/7,70) = 0,063.
+
+**Utilidade clínica (curva de decisão):**
+- O benefício líquido supera "tratar todos" e "tratar nenhum" em todos os limiares de 1% a 20%.
+- Com p_t = 5% (19 falsos alarmes aceitos por óbito identificado), o modelo A sinaliza 1,9% dos nascimentos, com 5,6 por mil de benefício líquido; o B tem 4,2 por mil. O máximo possível é 8,2 por mil.
+
+**H3, como na proposta:**
+- No modelo B, o O/E dos filhos de mães com fundamental incompleto é 1,06 (0,97–1,16); no A, 1,02 (0,94–1,11).
+- Os IC incluem 1 e se sobrepõem aos do ensino superior, então **H3 não se confirma**.
 - No modelo A, a AUROC por subgrupo varia de 0,950 a 0,962, com IC sobrepostos.
 - No modelo B, o risco é subestimado para filhos de **mães brancas** (O/E 1,15; IC 1,05–1,24) e para o **interior** (O/E 1,08; IC 1,02–1,15).
 - Ainda no modelo B, a AUROC é numericamente menor para mães com fundamental incompleto: 0,868 (0,841–0,895) contra 0,892 (0,865–0,918) no ensino superior.
 
-**Sensibilidade ao linkage:**
-- Só com as passadas 1–2, a AUROC é de 0,959 (A) e 0,891 (B), contra 0,956 e 0,890 com todas as passadas.
-- Os falsos pares das passadas tolerantes não explicam os resultados.
+**Sensibilidade ao linkage** (mesmo teste de 2023; Δ por bootstrap pareado):
+
+| Conj. | Rótulos no treino | AUROC | AUPRC | O/E | ΔAUROC vs principal |
+|---|---|---|---|---|---|
+| A | principal | 0,956 | 0,576 | 1,02 | — |
+| A | estrito (sem passadas 3–6) | 0,956 | 0,575 | 1,15 | −0,0001 (−0,0008 a 0,0006) |
+| A | pior caso (passadas 3–6 = 0) | 0,956 | 0,569 | 1,23 | −0,0005 (−0,0014 a 0,0004) |
+| B | principal | 0,890 | 0,406 | 1,05 | — |
+| B | estrito | 0,891 | 0,407 | 1,21 | 0,0011 (−0,0001 a 0,0025) |
+| B | pior caso | 0,890 | 0,407 | 1,27 | 0,0002 (−0,0013 a 0,0014) |
+
+- A **discriminação é robusta** aos erros do linkage.
+- A **calibração absoluta não é**: com menos positivos no treino, o modelo aprende uma prevalência menor.
 
 ### 4.2 Figuras (geradas pelo notebook em `figuras/`)
 
@@ -223,29 +292,37 @@ A tabela completa, com especificidade, VPN, Brier e todos os IC, está em [`figu
 
 ## 5. Conclusão
 
-- **H1 confirmada.** Com dados totalmente abertos e linkage sem identificadores, o XGBoost teve AUROC de **0,956** e concentrou **87%** dos óbitos nos 5% de maior risco, próximo do artigo (0,971; > 90%). As principais variáveis foram as mesmas. A diferença residual é compatível com três fatores:
-  - os ~10% de óbitos não pareados;
-  - a população estadual, mais heterogênea do que a de um único município;
-  - a qualidade de preenchimento da DN no interior.
-- **H2 confirmada em parte.** O modelo pré-parto perde discriminação (ΔAUROC = 0,066) e muita AUPRC, mas mantém **AUROC 0,890** e captaria **72%** dos óbitos priorizando 5% das gestantes na admissão. Isso é útil para regular gestantes de alto risco para maternidades com UTI neonatal.
-- **H3 com apoio fraco.** O modelo completo é homogêneo entre os subgrupos. No pré-parto, as diferenças de AUROC têm IC sobrepostos, mas o risco é subestimado para mães brancas e para o interior.
+- **H1 confirmada.** Com dados totalmente abertos e linkage sem identificadores, o XGBoost teve AUROC de **0,956** e concentrou **87%** dos óbitos nos 5% de maior risco, contra 0,971 e mais de 90% no artigo.
+  - As principais variáveis foram as mesmas.
+  - O resultado é **robusto ao linkage**: descartar ou zerar os pares duvidosos não muda a AUROC.
+  - A diferença residual é compatível com os ~15% de óbitos sem par verdadeiro (menos extremos, mais difíceis), com a heterogeneidade do estado e com a qualidade da DN e da DO no interior.
+- **H2 confirmada em parte.** O modelo pré-parto perde discriminação (ΔAUROC = 0,066) e muita AUPRC, mas mantém **AUROC 0,890** e benefício líquido positivo.
+  - **Uso adequado:** na admissão, com o parto iminente, para decidir transferência *in utero* para uma maternidade com UTI neonatal.
+  - Não serve para triagem precoce, porque a idade gestacional do parto e as consultas acumuladas não são conhecidas semanas antes.
+- **H3 não confirmada.** A calibração na baixa escolaridade não difere da do ensino superior.
+  - O modelo B subestima o risco para mães brancas e para o interior.
+  - **No interior**, há uma explicação alternativa: o pareamento é menor (88,0% contra 94,3%). Ela só produziria O/E > 1 se a completude mudasse entre os anos, o que não foi testado.
+  - **Para raça/cor**, o pareamento é quase uniforme, então o linkage não explica a diferença.
+- **Calibração e *drift*.** A inclinação ≈ 1 mostra boa calibração no sentido fraco. A calibração absoluta, porém, depende da completude do linkage e do aumento da TMN em 2023; um uso real exigiria recalibração periódica.
 - **Limitações:**
-  - ~10% dos óbitos não pareados ficam rotulados como sobreviventes;
-  - a validação é temporal, mas não externa, porque usa um único estado;
-  - no modelo pré-parto, a idade gestacional é a do parto;
+  - ~15% dos óbitos sem par verdadeiro;
+  - validação temporal, mas não externa;
+  - o modelo A usa variáveis posteriores ao nascimento;
+  - o bootstrap ignora a dependência entre gêmeos;
   - não havia óbitos suficientes para analisar mães amarelas e indígenas.
 - **Trabalhos futuros:**
   - validação em outras UFs;
   - etapa probabilística no linkage;
-  - extensão ao óbito pós-neonatal;
-  - idade gestacional estimada no pré-natal.
+  - completude do linkage por ano e região;
+  - avaliação de impacto com gestores.
 
 ## 6. Reprodução
 
 ```bash
 uv venv .venv -p 3.12 && uv pip install -p .venv -r requirements.txt
-.venv/bin/python -m pytest                      # 16 testes (linkage, preprocess, modelos, avaliação)
-.venv/bin/python -m src.experimento             # download + linkage + modelos + avaliação (~36 min, 32 núcleos)
+.venv/bin/python -m pytest                      # 20 testes (linkage, preprocess, modelos, avaliação, complementares)
+.venv/bin/python -m src.experimento             # download + linkage + modelos + avaliação + complementares (~55 min, 32 núcleos)
+.venv/bin/python -m src.experimento --complementares   # refaz só as análises complementares (~17 min)
 .venv/bin/jupyter nbconvert --to notebook --execute --inplace notebook/mortalidade_neonatal_rj.ipynb
 .venv/bin/python relatorio/gerar_numeros.py && (cd relatorio && latexmk -pdf main.tex)
 .venv/bin/python slides/gerar_slides.py
@@ -258,7 +335,10 @@ uv venv .venv -p 3.12 && uv pip install -p .venv -r requirements.txt
 | `src/preprocess.py` | limpeza, conjuntos A/B, divisão temporal |
 | `src/models.py` | LR, XGBoost, LightGBM, Optuna, recalibração isotônica |
 | `src/evaluate.py` | métricas, bootstrap, ΔAUC pareado, calibração, subgrupos |
+| `src/complementares.py` | viés do linkage, sensibilidade, calibração fraca, curva de decisão, premissas |
 | `src/experimento.py` | experimento completo → `data/resultados.pkl` |
+| `manifesto_dados.csv` | URL, tamanho, SHA-256 e data de cada arquivo do DATASUS |
+| `slides/gerar_apresentacao_tema.py` | preenche o modelo .odp da disciplina |
 | `relatorio/gerar_numeros.py` | macros LaTeX com os números (texto e resultados não divergem) |
 
 Os números deste README, do relatório e dos slides saem todos de `data/resultados.pkl`.

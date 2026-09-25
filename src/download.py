@@ -1,6 +1,8 @@
 """Download e leitura dos microdados públicos do SINASC e do SIM (DATASUS, formato DBC)."""
 from pathlib import Path
+import hashlib
 import urllib.request
+from datetime import datetime
 
 import pandas as pd
 import pyreaddbc
@@ -77,6 +79,25 @@ def baixar_tudo(destino: Path = RAW) -> dict[str, list[Path]]:
 def carregar(sistema: str, anos, pasta: Path = RAW) -> pd.DataFrame:
     return pd.concat([ler_dbc(Path(pasta) / nome_arquivo(sistema, a)).assign(ARQUIVO_ANO=a)
                       for a in anos], ignore_index=True)
+
+
+def manifesto(pasta: Path = RAW, saida: Path = DADOS.parent / "manifesto_dados.csv") -> pd.DataFrame:
+    """Versão exata dos dados usados: URL, tamanho, SHA-256 e data do download de cada DBC.
+
+    O DATASUS revisa os arquivos; com o hash, qualquer diferença numa nova execução é detectável.
+    As pastas usadas (DNRES, DORES) são as de dados definitivos; os preliminares ficam em PRELIM.
+    """
+    linhas = []
+    for sistema, anos in [("DN", ANOS_NASCIMENTO), ("DO", ANOS_OBITO)]:
+        for ano in anos:
+            arq = Path(pasta) / nome_arquivo(sistema, ano)
+            linhas.append({"arquivo": arq.name, "url": url_arquivo(sistema, ano), "situacao": "definitivo",
+                           "bytes": arq.stat().st_size,
+                           "sha256": hashlib.sha256(arq.read_bytes()).hexdigest(),
+                           "baixado_em": datetime.fromtimestamp(arq.stat().st_mtime).strftime("%Y-%m-%d %H:%M")})
+    df = pd.DataFrame(linhas)
+    df.to_csv(saida, index=False)
+    return df
 
 
 if __name__ == "__main__":

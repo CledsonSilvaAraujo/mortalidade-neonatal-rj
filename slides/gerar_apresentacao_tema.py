@@ -47,7 +47,7 @@ SLIDES = {
         ("q", "Qual é a pergunta clínica ou de pesquisa?"),
         ("a", "Dá para prever o óbito neonatal só com a DN e dados abertos? E só com o que se sabe antes do parto?"),
         ("q", "Qual seria o uso pretendido do modelo?"),
-        ("a", "Escore de risco para priorizar UTI neonatal, transporte, visita domiciliar e regulação da gestante."),
+        ("a", "Priorizar UTI neonatal e visita domiciliar e, na admissão para o parto, decidir transferência in utero."),
     ],
     "Google Shape;68;p15": [  # Formulação do problema de ML
         ("q", "Tarefa de aprendizado"),
@@ -80,7 +80,7 @@ SLIDES = {
         ("a", f"2. Classes desbalanceadas ({br(100 * prev)}% de óbitos) → AUPRC como métrica principal, peso de "
               "classe como hiperparâmetro, sem sobreamostragem para não distorcer a calibração."),
         ("a", "3. Variáveis registradas só depois do nascimento (Apgar, peso) → comparar com um modelo que usa "
-              "apenas dados disponíveis antes do parto."),
+              "apenas o que se sabe na admissão para o parto (risco dado que o parto é agora)."),
         ("a", "4. Campos ausentes ou \"ignorados\" na DN e mudanças no registro ao longo dos anos → ausência como "
               "categoria própria e validação temporal."),
         ("a", "5. Representatividade: um único estado → avaliar desempenho por raça/cor, escolaridade da mãe e "
@@ -119,8 +119,8 @@ NOTAS = [
     "O óbito neonatal é a maior parcela da mortalidade infantil e se concentra em poucos nascimentos. "
     "A pergunta é se a DN basta para identificar esses nascimentos, inclusive antes do parto.",
     "É uma classificação binária por nascido vivo. O rótulo vem do pareamento com o SIM.",
-    "Os dados são públicos. O desafio é que não há identificador; o teste preliminar do linkage já pareou "
-    "cerca de 90% dos óbitos, taxa comparável à obtida com dados identificados.",
+    "Os dados são públicos. O desafio é que não há identificador; o teste preliminar do linkage pareou "
+    "cerca de 90% dos óbitos, mas parte desses pares pode ser falsa, e isso será estimado.",
     "Os riscos principais são o rótulo imperfeito do linkage e o desbalanceamento; cada um tem um tratamento previsto.",
     "A avaliação espelha o artigo: treinar no passado e testar no ano seguinte, com AUPRC como métrica principal.",
     "O artigo de referência é brasileiro; a revisão de Mangold aponta a falta de calibração e validação externa.",

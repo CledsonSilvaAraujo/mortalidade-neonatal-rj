@@ -6,6 +6,8 @@
 \usepackage[T1]{fontenc}
 \usepackage{graphicx,url,amsmath,amssymb,booktabs,multirow}
 \usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\setlist{itemsep=1pt,topsep=3pt,parsep=0pt}
 \graphicspath{{../figuras/}}
 
 \newcommand{\nomeautor}{Cledson da Silva Araújo}
@@ -27,19 +29,19 @@ sem identificadores e aprendizado de máquina}
 \maketitle
 
 \begin{abstract}
-Batista et al. (2021) predicted neonatal death in São Paulo with XGBoost (AUROC 0.971), but relied on identified records linked by the city. We reproduce and extend their study for the state of Rio de Janeiro using only public DATASUS microdata. The data cover \nNV{} live births in 2017--2023. Because the public files have no identifiers, we linked births and deaths with cascaded composite keys and matched \pctPareado{} of the \nObitosSIM{} neonatal deaths, a rate comparable to what identified data achieve. Models were trained on 2017--2021, tuned and recalibrated on 2022, and tested once on 2023. With all birth-certificate variables, XGBoost reached an AUROC of \AXgbAurocIC{} and an AUPRC of \AXgbAuprc{}, and the 5\% highest-risk births held \AXgbTop{} of deaths. A model restricted to information available at admission for delivery reached an AUROC of \BXgbAuroc{}, with good calibration. The full model performed similarly across maternal race, education and region; the pre-delivery model underestimated risk for births to white mothers and outside the capital.
+Batista et al. (2021) predicted neonatal death in São Paulo with XGBoost (AUROC 0.971) using identified records linked by the city. We reproduce and extend their study for the state of Rio de Janeiro using only public DATASUS microdata covering \nNV{} live births in 2017--2023. Because the public files lack identifiers, we linked births and deaths with cascaded composite keys. This matched \pctPareado{} of the \nObitosSIM{} neonatal deaths; after discounting estimated false matches, about \pctVerdadeiros{} have a true match. Models were trained on 2017--2021, tuned and recalibrated on 2022, and tested once on 2023. With all birth-certificate variables, XGBoost reached an AUROC of \AXgbAurocIC{} and an AUPRC of \AXgbAuprc{}; the 5\% highest-risk births held \AXgbTop{} of deaths, with positive net benefit at every threshold from 1\% to 20\%. A model restricted to information available at admission for delivery reached an AUROC of \BXgbAuroc{}. Discrimination was insensitive to linkage errors, whereas absolute calibration depended on linkage completeness and on the 2023 rise in mortality.
 \end{abstract}
 
 \begin{resumo}
-Batista et al. (2021) previram o óbito neonatal em São Paulo com XGBoost e obtiveram AUROC de 0,971, mas usaram registros identificados, pareados pela prefeitura. Este trabalho reproduz e estende o estudo para o estado do Rio de Janeiro usando apenas microdados públicos do DATASUS. Os dados cobrem \nNV{} nascidos vivos entre 2017 e 2023. Como os arquivos públicos não têm identificadores, os nascimentos foram pareados aos óbitos por chaves compostas em cascata. Foram pareados \pctPareado{} dos \nObitosSIM{} óbitos neonatais, taxa comparável à obtida com dados identificados. Os modelos foram treinados em 2017--2021, ajustados e recalibrados em 2022 e testados uma única vez em 2023. Com todas as variáveis da Declaração de Nascido Vivo, o XGBoost atingiu AUROC de \AXgbAurocIC{} e AUPRC de \AXgbAuprc{}; os 5\% de maior risco concentraram \AXgbTop{} dos óbitos. Um modelo restrito ao que se sabe na admissão para o parto atingiu AUROC de \BXgbAuroc{}, com boa calibração. O modelo completo teve desempenho semelhante entre os grupos de raça/cor e de escolaridade da mãe e entre capital e interior. O modelo pré-parto subestimou o risco para filhos de mães brancas e para residentes no interior.
+Batista et al. (2021) previram o óbito neonatal em São Paulo com XGBoost (AUROC de 0,971) usando registros identificados, pareados pela prefeitura. Este trabalho reproduz e estende o estudo para o estado do Rio de Janeiro usando apenas microdados públicos do DATASUS, com \nNV{} nascidos vivos entre 2017 e 2023. Como os arquivos públicos não têm identificadores, os nascimentos foram pareados aos óbitos por chaves compostas em cascata. Foram pareados \pctPareado{} dos \nObitosSIM{} óbitos neonatais; descontados os falsos pares estimados, cerca de \pctVerdadeiros{} têm um par verdadeiro. Os modelos foram treinados em 2017--2021, ajustados e recalibrados em 2022 e testados uma única vez em 2023. Com todas as variáveis da Declaração de Nascido Vivo, o XGBoost atingiu AUROC de \AXgbAurocIC{} e AUPRC de \AXgbAuprc{}. Os 5\% de maior risco concentraram \AXgbTop{} dos óbitos, e o benefício líquido foi positivo em todos os limiares de 1\% a 20\%. Um modelo restrito ao que se sabe na admissão para o parto atingiu AUROC de \BXgbAuroc{}. A discriminação não foi sensível aos erros do linkage; a calibração absoluta dependeu da completude do linkage e do aumento da mortalidade em 2023.
 \end{resumo}
 
 % ---------------------------------------------------------------------------
 \section{Introdução}
 
-O período neonatal (0 a 27 dias de vida) concentra a maior parte dos óbitos infantis no Brasil, e boa parte deles é considerada evitável por atenção adequada à gestação, ao parto e ao recém-nascido. No estado do Rio de Janeiro, a taxa de mortalidade neonatal (TMN) entre 2017 e 2023 foi de \tmnSIM{} óbitos por mil nascidos vivos, segundo o Sistema de Informações sobre Mortalidade (SIM).
+O período neonatal (0 a 27 dias de vida) concentra a maior parte dos óbitos infantis no Brasil, e boa parte deles é considerada evitável por atenção adequada à gestação, ao parto e ao recém-nascido. No estado do Rio de Janeiro, a taxa de mortalidade neonatal (TMN) entre 2017 e 2023 foi de \tmnSIM{} óbitos por mil nascidos vivos, segundo o SIM.
 
-A Declaração de Nascido Vivo (DN) é preenchida para todo nascimento e alimenta o Sistema de Informações sobre Nascidos Vivos (SINASC). Um escore de risco calculado a partir dela poderia apoiar decisões como a priorização de leitos de UTI neonatal, o transporte inter-hospitalar e a visita domiciliar na primeira semana. Batista et al.~\cite{batista2021} mostraram que isso é viável: com as variáveis da DN do município de São Paulo, o XGBoost atingiu AUROC de 0,971.
+A Declaração de Nascido Vivo (DN) é preenchida para todo nascimento e alimenta o SINASC. Um escore de risco calculado a partir dela pode apoiar a priorização de leitos de UTI neonatal, o transporte inter-hospitalar e a visita domiciliar na primeira semana. Batista et al.~\cite{batista2021} mostraram que isso é viável: com as variáveis da DN do município de São Paulo, o XGBoost atingiu AUROC de 0,971.
 
 O estudo, porém, deixa três lacunas:
 \begin{itemize}
@@ -48,48 +50,44 @@ O estudo, porém, deixa três lacunas:
   \item não avalia calibração nem desempenho por subgrupo, lacunas também apontadas na revisão sistemática de \cite{mangold2021}.
 \end{itemize}
 
-Este trabalho responde a três perguntas:
+As hipóteses abaixo estão como na proposta do projeto:
 \begin{enumerate}
-  \item O desempenho do artigo se reproduz no estado do RJ usando apenas microdados públicos, que não têm identificadores? (H1: AUROC $\geq$ 0,95.)
-  \item Quanto se perde com um modelo que usa só o que se sabe na admissão para o parto? (H2: queda substancial, com o modelo ainda útil para triagem.)
-  \item O modelo é calibrado e funciona igualmente por raça/cor e escolaridade da mãe e entre capital e interior? (H3: pior nos subgrupos de menor escolaridade.)
+  \item \textbf{H1 (reprodução):} com dados abertos e sem identificadores, o modelo completo atinge AUROC $\geq$ 0,95 no RJ.
+  \item \textbf{H2 (pré-parto):} um modelo com o que se sabe na admissão para o parto tem queda substancial de AUROC, mas continua útil para triagem.
+  \item \textbf{H3 (calibração e equidade):} a calibração piora nos subgrupos de menor escolaridade da mãe.
 \end{enumerate}
+
+O relato segue, no que se aplica, o TRIPOD+AI~\cite{collins2024}.
 
 % ---------------------------------------------------------------------------
 \section{Trabalhos relacionados}
 
-\textbf{Artigo de referência.} \cite{batista2021} fizeram o linkage probabilístico de 1.202.843 nascimentos do município de São Paulo (2012--2017) com os registros de óbito, identificando 7.282 óbitos neonatais.
-\begin{itemize}
-  \item Foram usadas as 23 variáveis da DN para treinar cinco algoritmos: regressão logística, rede neural, XGBoost, LightGBM e CatBoost.
-  \item Os hiperparâmetros foram escolhidos por otimização bayesiana com validação cruzada de 10 \textit{folds}.
-  \item O treino usou 2012--2016 e o teste, 2017.
-  \item O XGBoost teve o melhor desempenho: AUROC 0,971, AUPRC 0,586, F1 0,548, precisão 0,729 e sensibilidade 0,440.
-  \item Os 5\% de maior risco concentraram mais de 90\% dos óbitos.
-  \item Pelos valores SHAP, as variáveis mais importantes foram o Apgar no 5º e no 1º minuto, o peso ao nascer, a anomalia congênita e a idade gestacional.
-\end{itemize}
+\textbf{Artigo de referência.} \cite{batista2021} fizeram o linkage probabilístico, com dados identificados, dos nascimentos do município de São Paulo em 2012--2017 (7.282 óbitos neonatais). Eles treinaram cinco algoritmos com as 23 variáveis da DN (otimização bayesiana com validação cruzada de 10 \textit{folds}), treinaram em 2012--2016 e testaram em 2017. O XGBoost teve AUROC 0,971, AUPRC 0,586, F1 0,548, precisão 0,729 e sensibilidade 0,440, e os 5\% de maior risco concentraram mais de 90\% dos óbitos. As principais variáveis pelo SHAP foram o Apgar no 5º e no 1º minuto, o peso, a anomalia congênita e a idade gestacional.
 
-\textbf{Modelos de mortalidade neonatal.} A revisão sistemática de \cite{mangold2021} reuniu 11 estudos, com 1,26 milhão de neonatos, e encontrou AUROC entre 0,58 e 0,97. Peso, idade gestacional, Apgar e gemelaridade foram os preditores mais comuns. Apenas 45\% dos estudos reportaram curvas de calibração, e 18\% fizeram validação externa.
+\textbf{Outros estudos brasileiros.} \cite{ramos2025} usaram SINASC e SIM de todo o país (8,8 milhões de nascimentos, 2015--2017) para prever óbitos neonatais evitáveis. No XGBoost, os 5\% de maior risco concentraram mais de 85\% dos óbitos, sem diferença na captura entre grupos de raça/cor, escolaridade e idade materna. \cite{silva2025}, do grupo do artigo de referência, compararam estratégias de treino com dados de oito países de baixa e média renda e obtiveram AUROC de 0,816 com indicadores recomendados pela OMS. A revisão de \cite{mangold2021} reuniu 11 estudos (1,26 milhão de neonatos), com AUROC entre 0,58 e 0,97; só 45\% reportaram calibração e 18\% fizeram validação externa.
 
-\textbf{Linkage SIM $\times$ SINASC.} \cite{maia2017} parearam 90,8\% dos óbitos infantis das 27 capitais brasileiras aos respectivos nascimentos, combinando etapas determinísticas e probabilísticas sobre dados identificados. Nessas condições, o pareamento foi maior para óbitos neonatais do que para pós-neonatais.
+\textbf{Linkage e avaliação.} \cite{maia2017} parearam 90,8\% dos óbitos infantis das capitais brasileiras aos nascimentos, com dados identificados e etapas determinísticas e probabilísticas; nas capitais do Sudeste, 93,1\%. Para avaliar a calibração, seguimos \cite{vancalster2019}; para a utilidade clínica, a curva de decisão de \cite{vickers2006}.
 
 % ---------------------------------------------------------------------------
 \section{Dados}
 
-\subsection{Fontes}
+\subsection{Fontes, versão e aspectos éticos}
 
-Foram usados os microdados públicos do SINASC (arquivos \texttt{DNRJ2017}--\texttt{DNRJ2023}) e do SIM (\texttt{DORJ2017}--\texttt{DORJ2024}) por residência no estado do RJ, obtidos no FTP do DATASUS sem cadastro \cite{datasus}. O SIM vai até 2024 para incluir os óbitos de quem nasceu no fim de 2023.
+Foram usados os microdados do SINASC (\texttt{DNRJ2017}--\texttt{DNRJ2023}) e do SIM (\texttt{DORJ2017}--\texttt{DORJ2024}) por residência no RJ, obtidos no FTP do DATASUS sem cadastro~\cite{datasus} em 24/09/2026. Todos vêm das pastas de dados definitivos; os preliminares do SIM começam em 2025. O SIM vai até 2024 para incluir os óbitos de quem nasceu no fim de 2023.
 
-O desfecho é o óbito não fetal com 0 a 27 dias completos de vida, calculados pela diferença entre a data do óbito e a data de nascimento. Os arquivos somam \nNV{} nascidos vivos e \nObitosSIM{} óbitos neonatais.
+O arquivo \texttt{manifesto\_dados.csv} do repositório registra, para cada arquivo, a URL, o tamanho e o hash SHA-256. Assim, uma revisão futura do DATASUS pode ser detectada.
+
+O desfecho é o óbito não fetal com 0 a 27 dias completos de vida, calculados pela diferença entre a data do óbito e a data de nascimento.
+
+\textbf{Aspectos éticos.} São dados públicos e sem identificação nominal, o que dispensa a apreciação pelo sistema CEP/Conep (Res.\ CNS 510/2016, art.~1º, parágrafo único~\cite{cns510}). O próprio linkage, porém, cria um risco de reidentificação: data de nascimento, sexo, peso e município tornam o registro quase único. Por isso, o repositório publica o código, mas não a base pareada.
 
 \subsection{Linkage sem identificadores}
 
-Os arquivos públicos não trazem o número da DN, o nome da mãe nem o endereço. No entanto, a Declaração de Óbito de menores de 1 ano repete dados do nascimento: data, sexo, peso, idade da mãe, semanas de gestação, tipo de gravidez e de parto. Além disso, o estabelecimento do óbito do neonato costuma ser o hospital onde ele nasceu.
+Os arquivos públicos não trazem o número da DN, o nome da mãe nem o endereço. A Declaração de Óbito (DO) de menores de 1 ano, no entanto, repete dados do nascimento, e o estabelecimento do óbito do neonato costuma ser o hospital do parto.
 
-Cada óbito foi pareado a um nascido vivo por concordância exata em \nPassadas{} chaves compostas aplicadas em cascata (Tabela~\ref{tab:linkage}). As chaves vão da mais restritiva à mais tolerante a campos ausentes. Em cada passada, uma chave só é aceita se for única entre os nascidos ainda não pareados e entre os óbitos ainda não pareados (pares 1:1).
+Cada óbito foi pareado a um nascido vivo por concordância exata em \nPassadas{} chaves compostas, aplicadas em cascata da mais restritiva à mais tolerante a campos ausentes (Tabela~\ref{tab:linkage}). Em cada passada, uma chave só é aceita se for única entre os nascidos e entre os óbitos ainda não pareados (pares 1:1). Duas chaves mais tolerantes foram descartadas por excesso estimado de falsos pares.
 
-Duas chaves adicionais foram testadas e descartadas por excesso estimado de falsos pares: data + sexo + município + peso, e data + sexo + município + estabelecimento. A segunda pareia neonatos transferidos com outro recém-nascido do hospital onde morreram.
-
-\textbf{Estimativa de falsos pares.} Um campo que nunca entra nas chaves concorda nos pares verdadeiros com uma frequência $c_{\text{verd}}$ (menor que 100\%, por erros de registro) e nos pares falsos com a frequência do acaso, $c_{\text{acaso}}$. Se a passada $k$ tem uma fração $f_k$ de falsos pares, a concordância observada é
+\textbf{Falsos pares.} Um campo que nunca entra nas chaves concorda nos pares verdadeiros com frequência $c_{\text{verd}}$ e nos falsos com a do acaso, $c_{\text{acaso}}$. Assim, na passada $k$,
 \begin{equation}
 c_k = (1-f_k)\,c_{\text{verd}} + f_k\,c_{\text{acaso}}
 \quad\Rightarrow\quad
@@ -97,14 +95,15 @@ f_k = \frac{c_{\text{verd}} - c_k}{c_{\text{verd}} - c_{\text{acaso}}}.
 \end{equation}
 Na estimativa:
 \begin{itemize}
-  \item $c_{\text{verd}}$ vem da passada 1, a chave completa;
-  \item $c_{\text{acaso}}$ vem de pares sorteados com a mesma data de nascimento e o mesmo sexo;
-  \item os campos de conferência são a escolaridade da mãe e o número de perdas fetais anteriores.
+  \item os campos de conferência são a escolaridade da mãe e o número de perdas fetais;
+  \item $c_{\text{acaso}}$ vem de pares sorteados com a mesma data e o mesmo sexo;
+  \item \textbf{premissa:} $c_{\text{verd}}$ é a concordância da passada 1, supondo 0\% de falsos pares nela, que usa a chave completa com oito campos.
 \end{itemize}
+Se a passada 1 tiver falsos pares, os $f_k$ das demais estão subestimados.
 
-\begin{table}[ht]
+\begin{table}[!htbp]
 \centering
-\caption{Chaves do linkage, número de pares e fração estimada de falsos pares.}
+\caption{Chaves do linkage, pares aceitos e fração estimada de falsos pares.}
 \label{tab:linkage}
 \small
 \tabLinkage
@@ -112,247 +111,234 @@ Na estimativa:
 
 \subsection{Preparação}
 
-\textbf{Variáveis.} São 28 variáveis da DN:
+As 28 variáveis da DN são:
 \begin{itemize}
   \item 13 numéricas: idade da mãe e do pai, histórico obstétrico, semanas de gestação, consultas e mês de início do pré-natal, Apgar e peso;
-  \item 14 categóricas, entre elas estado civil, escolaridade e raça/cor da mãe, tipo de gravidez e de parto, sexo, anomalia congênita, apresentação, indução, cesárea antes do trabalho de parto, grupo de Robson e índice de Kotelchuck;
-  \item um indicador de residência na capital.
+  \item 14 categóricas: estado civil, escolaridade e raça/cor da mãe, gravidez, parto, sexo, anomalia, apresentação, indução, cesárea antes do trabalho de parto, quem assistiu, grupo de Robson, índice de Kotelchuck e local de nascimento;
+  \item o indicador de residência na capital.
 \end{itemize}
 
-\textbf{Limpeza.}
-\begin{itemize}
-  \item Nas variáveis numéricas, os códigos de ``ignorado'' (99, ou 9999 no peso) viram ausentes.
-  \item Nas categóricas, o ``9'' e o campo vazio viram categorias próprias, porque o não preenchimento da DN também informa sobre a assistência.
-  \item A exclusão do artigo (idade gestacional fora de 15--45 semanas) não removeu nenhum registro, porque o SINASC já valida esse campo.
-\end{itemize}
+Nas numéricas, o código de ``ignorado'' (99, ou 9999 no peso) vira ausente. Nas categóricas, o ``9'' e o vazio viram categorias próprias. A exclusão do artigo (idade gestacional fora de 15--45 semanas) não removeu registros. A Tabela~\ref{tab:desc} mostra o gradiente da TMN; ela é \razaoEscol{} vezes maior entre filhos de mães com fundamental incompleto do que com ensino superior.
 
-A Tabela~\ref{tab:desc} mostra a TMN pelos principais fatores. O gradiente é muito forte por peso e idade gestacional, e a TMN é \razaoEscol{} vezes maior entre filhos de mães com fundamental incompleto do que entre filhos de mães com ensino superior.
-
-\begin{table}[ht]
+\begin{table}[!htbp]
 \centering
 \caption{Taxa de mortalidade neonatal (TMN, por mil nascidos vivos) na base pareada, 2017--2023.}
 \label{tab:desc}
-\small
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \tabDescritiva
 \end{table}
 
 % ---------------------------------------------------------------------------
 \section{Métodos}
 
-\subsection{Conjuntos de variáveis}
+\subsection{Conjuntos de variáveis e modelos}
 
-\textbf{(A) Completo}: as \nVarsA{} variáveis descritas acima, que reproduzem o artigo.
+\textbf{(A) Completo}: as \nVarsA{} variáveis, que reproduzem o artigo.
 
-\textbf{(B) Pré-parto}: \nVarsB{} variáveis conhecidas na admissão para o parto:
-\begin{itemize}
-  \item dados da mãe e do pai;
-  \item histórico obstétrico;
-  \item idade gestacional;
-  \item tipo de gravidez e apresentação;
-  \item consultas e início do pré-natal;
-  \item índice de Kotelchuck;
-  \item residência na capital.
-\end{itemize}
-Saem do conjunto B o Apgar, o peso, a anomalia congênita, o sexo, o local e o tipo de parto, a indução, a cesárea antes do trabalho de parto, quem assistiu o parto e o grupo de Robson. O grupo de Robson sai porque usa o início do trabalho de parto.
+\textbf{(B) Pré-parto}: as \nVarsB{} variáveis conhecidas na admissão para o parto (mãe, pai, histórico obstétrico, idade gestacional, gravidez, apresentação, pré-natal, Kotelchuck e capital). Saem as variáveis do recém-nascido e do parto. O grupo de Robson também sai, porque usa o início do trabalho de parto.
 
-\subsection{Modelos}
+A idade gestacional é a do parto. Consultas e Kotelchuck também dependem dela, porque uma gestação mais curta tem menos consultas. Por isso, o modelo B estima o risco \emph{dado que o parto ocorre agora, com essa idade gestacional}, e não o risco semanas antes.
 
-\textbf{Regressão logística} (linha de base interpretável):
+\textbf{Regressão logística} (linha de base):
 \begin{equation}
-P(y=1\mid\mathbf{x}) = \sigma(\beta_0 + \boldsymbol\beta^\top\mathbf{x}), \qquad \sigma(z) = \frac{1}{1+e^{-z}}.
+P(y{=}1\mid\mathbf{x}) = \sigma(\beta_0 + \boldsymbol\beta^\top\mathbf{x}), \qquad \sigma(z) = \frac{1}{1+e^{-z}}.
 \end{equation}
-O modelo usa penalização L2, com $C \in \{0{,}01;\ 0{,}1;\ 1\}$ escolhido na validação, e pesos de classe balanceados. Antes do ajuste há imputação pela mediana com indicador de ausência, padronização e \textit{one-hot}, todos ajustados só no treino.
+O modelo usa penalização L2 ($C \in \{0{,}01;\ 0{,}1;\ 1\}$) e pesos de classe balanceados. Imputação pela mediana com indicador de ausência, padronização e \textit{one-hot} são ajustados só no treino.
 
-\textbf{XGBoost} \cite{chen2016} \textbf{e LightGBM} \cite{ke2017}: o escore é uma soma de $K$ árvores de regressão,
-\begin{equation}
-F(\mathbf{x}) = \sum_{k=1}^{K} f_k(\mathbf{x}), \qquad P(y=1\mid\mathbf{x}) = \sigma(F(\mathbf{x})),
-\end{equation}
-ajustadas em sequência. A árvore $f_k$ minimiza a expansão de segunda ordem da log-loss mais a regularização $\Omega(f) = \gamma T + \tfrac{1}{2}\lambda\lVert w\rVert^2 + \alpha\lVert w\rVert_1$, com $T$ folhas e pesos $w$. As variáveis categóricas e os ausentes são tratados de forma nativa.
+\textbf{XGBoost}~\cite{chen2016} \textbf{e LightGBM}~\cite{ke2017}: o escore é $F(\mathbf{x}) = \sum_{k=1}^{K} f_k(\mathbf{x})$ e $P(y{=}1\mid\mathbf{x}) = \sigma(F(\mathbf{x}))$, com árvores ajustadas em sequência. Cada árvore minimiza a expansão de segunda ordem da log-loss mais $\Omega(f) = \gamma T + \tfrac{1}{2}\lambda\lVert w\rVert^2 + \alpha\lVert w\rVert_1$, e categorias e ausentes são tratados de forma nativa.
 
-\textbf{Complexidade.}
-\begin{itemize}
-  \item Com histogramas, o ajuste custa $O(K\cdot n\cdot d)$ ($n$ registros, $d$ variáveis), e a predição custa $O(K\cdot\text{profundidade})$ por registro.
-  \item A regressão logística custa $O(n\cdot d')$ por iteração do L-BFGS, com $d'$ colunas após o \textit{one-hot}.
-  \item O experimento completo levou \tempoMin{} minutos em 32 núcleos.
-\end{itemize}
+\textbf{Complexidade.} O ajuste com histogramas custa $O(K n d)$, e a predição, $O(K\cdot\text{profundidade})$ por registro. O experimento completo levou \tempoMin{} minutos em 32 núcleos.
 
-\subsection{Validação}
+\subsection{Validação e hiperparâmetros}
 
 A validação é temporal, como no artigo:
 \begin{itemize}
-  \item \textbf{ajuste} em 2017--2021 (\nAjuste{} nascidos vivos, \obAjuste{} óbitos);
-  \item \textbf{validação} em 2022 (\nValid{}, \obValid{});
-  \item \textbf{teste} em 2023 (\nTeste{}, \obTeste{}), usado uma única vez.
+  \item \textbf{ajuste:} 2017--2021 (\nAjuste{} nascidos vivos, \obAjuste{} óbitos);
+  \item \textbf{validação:} 2022 (\nValid{}, \obValid{});
+  \item \textbf{teste:} 2023 (\nTeste{}, \obTeste{}), usado uma única vez.
 \end{itemize}
 
-Na validação:
+Na validação foram feitos:
 \begin{itemize}
-  \item a busca bayesiana de hiperparâmetros (TPE, Optuna \cite{akiba2019}) maximizou a AUPRC, com 15 tentativas para o XGBoost e 10 para o LightGBM e \textit{early stopping} de 50 árvores;
-  \item o peso da classe positiva foi tratado como hiperparâmetro (nenhum, $\sqrt{n_0/n_1}$ ou $n_0/n_1$), e a busca escolheu ``nenhum'' nos dois conjuntos;
-  \item uma regressão isotônica recalibrou as probabilidades;
-  \item o limiar de classificação foi o que maximiza o F1.
+  \item a busca bayesiana (TPE, Optuna~\cite{akiba2019}) que maximiza a AUPRC, com 15 tentativas para o XGBoost e 10 para o LightGBM e \textit{early stopping} de 50 árvores;
+  \item a escolha do peso da classe positiva, tratado como hiperparâmetro (nenhum, $\sqrt{n_0/n_1}$ ou $n_0/n_1$);
+  \item a recalibração isotônica;
+  \item a escolha do limiar que maximiza o F1.
 \end{itemize}
-A Tabela~\ref{tab:hiper} lista os hiperparâmetros finais do XGBoost.
 
-\begin{table}[ht]
-\centering
-\caption{Hiperparâmetros finais do XGBoost (número de árvores definido pelo \textit{early stopping}).}
-\label{tab:hiper}
-\small
-\tabHiper
-\end{table}
+Quatro escolhas precisam de justificativa. A \textbf{busca é curta} porque cada ajuste leva $\approx$20 s com $10^6$ registros e a melhor AUPRC estabilizou antes da metade das tentativas (curvas no notebook). O \textbf{holdout temporal}, em vez de validação cruzada, imita o uso real: treinar no passado e aplicar no ano seguinte. Como a \textbf{mesma validação} serve para \textit{early stopping}, busca, isotônica e limiar, as métricas de validação são otimistas, mas o teste de 2023 continua intocado. Por fim, o modelo \textbf{não foi reajustado} com 2017--2022, porque 2022 é necessário para a recalibração e o limiar.
+
+Os hiperparâmetros finais estão no README do repositório.
 
 \subsection{Medidas de desempenho}
 
-As métricas se dividem em dois grupos:
+As medidas se dividem em dois grupos:
 \begin{itemize}
-  \item \textbf{Discriminação:} AUROC, AUPRC e fração dos óbitos entre os 5\% de maior risco, a métrica que permite comparar com o artigo.
-  \item \textbf{Calibração e decisão:} escore de Brier, razão observado/esperado (O/E) e as métricas no limiar (F1, precisão, sensibilidade, especificidade e VPN).
+  \item \textbf{Discriminação:} AUROC, AUPRC (métrica principal, com prevalência de $\approx$0,8\%) e fração dos óbitos entre os 5\% de maior risco. São calculadas pelo escore bruto do modelo, porque a isotônica é monótona mas cria empates.
+  \item \textbf{Calibração e decisão:} Brier, razão observado/esperado (O/E), intercepto e inclinação de calibração~\cite{vancalster2019}, benefício líquido~\cite{vickers2006} e métricas no limiar. São calculadas pela probabilidade recalibrada.
 \end{itemize}
 
-A AUPRC é a métrica principal porque a prevalência é de $\approx$0,8\%. A isotônica é monótona, mas é uma função em degraus e cria empates. Por isso, a discriminação é medida pelo escore bruto do modelo, e o restante pela probabilidade recalibrada.
+Os intervalos de confiança de 95\% vêm de 500 reamostras bootstrap estratificadas, e os $\Delta$ entre modelos, de bootstrap pareado. A interpretação usa SHAP~\cite{lundberg2017} em 20.000 nascimentos de 2023.
 
-Os intervalos de confiança de 95\% vêm de 500 reamostras bootstrap estratificadas por desfecho. As diferenças entre modelos ($\Delta$AUROC e $\Delta$AUPRC) usam bootstrap pareado. A interpretação usa valores SHAP \cite{lundberg2017} (\textit{TreeExplainer}) numa amostra de 20.000 nascimentos de 2023.
+\subsection{Avaliação das premissas}
 
-Como análise de sensibilidade, o XGBoost foi refeito sem os pares das passadas 3 a 6 do linkage.
+\textbf{Colinearidade.} Na regressão logística, filhos vivos e gestações anteriores têm VIF de \vifFilhos{} e \vifGest{} (gestações $\approx$ partos + perdas), e partos vaginais anteriores, \vifPartos{}; as demais variáveis têm VIF $\leq$ \vifOutrosMax{}. Isso torna instáveis os coeficientes dessas contagens, mas não a predição; a penalização L2 estabiliza o ajuste, e as árvores não dependem dessa premissa. Não interpretamos os coeficientes.
+
+\textbf{Mecanismo dos ausentes.} A ausência não é aleatória, porque a TMN é maior quando o campo falta:
+\begin{itemize}
+  \item consultas de pré-natal: \ausCons{}‰ ausente contra \preCons{}‰ preenchido;
+  \item Apgar 5: \ausApg{}‰ contra \preApg{}‰;
+  \item idade do pai: \ausPai{}‰ contra \prePai{}‰ (ausente em \pctAusPai{}\%).
+\end{itemize}
+Isso é compatível com ausência informativa (MAR condicional à assistência ou MNAR). Por isso usamos indicadores e categorias de ausência, e não apenas imputação.
+
+\textbf{Independência.} Gêmeos compartilham mãe e gestação. Eles são \pctMult{}\% dos nascimentos, mas \pctObMult{}\% dos óbitos. O bootstrap trata os nascimentos como independentes, o que estreita um pouco os IC. Excluindo os múltiplos do teste, a AUROC fica em \aurocUnicosA{} (A) e \aurocUnicosB{} (B).
+
+\textbf{Linkage.} As análises do viés de rótulo e de sensibilidade estão na Seção~\ref{sec:vies}.
 
 % ---------------------------------------------------------------------------
 \section{Resultados}
 
-\subsection{Linkage}
+\subsection{Linkage e viés de rótulo}
+\label{sec:vies}
 
-Foram pareados \nPareados{} dos \nObitosSIM{} óbitos neonatais (\pctPareado{}), com variação de \pctPareadoMin{} a \pctPareadoMax{} entre os anos (Figura~\ref{fig:linkage}). As passadas 1 e 2 respondem por \pctParesUmDois{} dos pares e têm até \falsosUmDoisMax{} de falsos pares estimados. As passadas tolerantes chegam a \falsosMax{}, e a média ponderada é de \falsosPonderado{}. A TMN da base pareada é de \tmnPareada{}‰, contra \tmnSIM{}‰ no SIM.
+Foram pareados \nPareados{} dos \nObitosSIM{} óbitos neonatais (\pctPareado{}; entre \pctPareadoMin{} e \pctPareadoMax{} por ano). As passadas 1 e 2 respondem por \pctParesUmDois{} dos pares, com até \falsosUmDoisMax{} de falsos pares estimados; as tolerantes chegam a \falsosMax{}. A média ponderada de falsos pares é de \falsosPonderado{}, o que deixa $\approx$\pctVerdadeiros{} dos óbitos com um par verdadeiro. A TMN da base pareada é de \tmnPareada{}‰, contra \tmnSIM{}‰ no SIM.
 
-\begin{figure}[ht]
+O pareamento foi de \linkCap{} na capital e \linkInt{} no interior; por raça/cor do recém-nascido (informada na DO), variou pouco, de \linkRacaMin{} a \linkRacaMax{}. A comparação com \cite{maia2017} exige cautela: eles usaram óbitos infantis e dados identificados, e a nossa taxa inclui falsos pares.
+
+Os \nNaoPareados{} óbitos não pareados diferem dos pareados no que a própria DO informa (Tabela~\ref{tab:vies}):
+\begin{itemize}
+  \item faltam com muito mais frequência peso (\nparPesoAus{}\% contra \parPesoAus{}\%), semanas de gestação e idade da mãe, campos exigidos pelas chaves; óbitos sem peso na DO foram pareados em só \linkPesoAus{} dos casos;
+  \item moram menos na capital e morrem menos em hospital;
+  \item têm peso mediano maior.
+\end{itemize}
+Logo, os óbitos que viram falsos ``sobreviventes'' são, em média, menos extremos, mais do interior e de registros de pior qualidade. Como a ausência de campos na DN está associada a TMN \emph{maior} na base pareada, esse viés não tornou a ausência um sinal de sobrevivência.
+
+\begin{table}[!htbp]
 \centering
-\includegraphics[width=0.72\textwidth]{linkage_por_ano.png}
-\caption{TMN no SIM e na base pareada por ano de nascimento; os rótulos indicam o percentual de óbitos pareados.}
-\label{fig:linkage}
-\end{figure}
+\caption{Óbitos neonatais pareados $\times$ não pareados, pelas informações da Declaração de Óbito.}
+\label{tab:vies}
+\small
+\tabVies
+\end{table}
 
 \subsection{Desempenho}
 
-A Tabela~\ref{tab:metricas} resume o teste de 2023. Com o conjunto completo (A):
+A Tabela~\ref{tab:metricas} resume o teste de 2023. No conjunto A, o XGBoost teve AUROC de \AXgbAurocIC{} e AUPRC de \AXgbAuprcIC{}, e os 5\% de maior risco concentraram \AXgbTop{} dos óbitos. No limiar de 2022, F1 = \AXgbFum{}, precisão = \AXgbPrec{} e sensibilidade = \AXgbSens{}.
+
+O ganho do XGBoost sobre a regressão logística foi pequeno: em AUROC, $\Delta$ = \dXLa{} (IC \dXLaIC{}); em AUPRC, $\Delta$ = \dXLaprc{} (IC \dXLaprcIC{}). O LightGBM empatou com o XGBoost.
+
+No conjunto B, o XGBoost teve AUROC de \BXgbAurocIC{} e AUPRC de \BXgbAuprcIC{}. A diferença em relação a A foi $\Delta$AUROC = \dAB{} (IC \dABIC{}) e $\Delta$AUPRC = \dABprc{} (IC \dABprcIC{}), e os 5\% de maior risco concentraram \BXgbTop{} dos óbitos.
+
+Pelo SHAP (Figura~\ref{fig:shap}), as cinco principais variáveis foram:
 \begin{itemize}
-  \item o XGBoost atingiu AUROC de \AXgbAurocIC{} e AUPRC de \AXgbAuprcIC{};
-  \item os 5\% de maior risco concentraram \AXgbTop{} dos óbitos;
-  \item no limiar escolhido em 2022, F1 = \AXgbFum{}, precisão = \AXgbPrec{}, sensibilidade = \AXgbSens{} e VPN = \AXgbVpn{}.
+  \item no modelo A: \shapTopA{}, as mesmas do artigo;
+  \item no modelo B: \shapTopB{}.
 \end{itemize}
 
-O ganho do XGBoost sobre a regressão logística foi pequeno. Em AUROC, $\Delta$ = \dXLa{} (IC \dXLaIC{}), com limite inferior praticamente nulo. Em AUPRC, o ganho foi mais claro: $\Delta$ = \dXLaprc{} (IC \dXLaprcIC{}). O LightGBM ficou praticamente empatado com o XGBoost. A Figura~\ref{fig:roc} mostra as curvas ROC e precisão--sensibilidade.
-
-\begin{table}[ht]
+\begin{table}[!htbp]
 \centering
-\caption{Desempenho no teste de 2023 (IC 95\% por bootstrap). AUROC, AUPRC e top 5\% vêm do escore bruto; F1, precisão e sensibilidade, do limiar escolhido em 2022.}
+\caption{Desempenho no teste de 2023 (IC 95\% por bootstrap). AUROC, AUPRC e top 5\% pelo escore bruto; F1, precisão e sensibilidade no limiar escolhido em 2022.}
 \label{tab:metricas}
 \small
 \setlength{\tabcolsep}{4pt}
 \tabMetricas
 \end{table}
 
-\begin{figure}[ht]
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{roc_pr.png}
-\caption{Curvas ROC e precisão--sensibilidade no teste de 2023. Linha cheia: conjunto completo (A); tracejada: pré-parto (B). Entre parênteses, AUROC e AUPRC.}
+\includegraphics[width=0.8\textwidth]{roc_pr.png}
+\caption{Curvas ROC e precisão--sensibilidade no teste de 2023. Cheia: conjunto A; tracejada: conjunto B.}
 \label{fig:roc}
 \end{figure}
 
-\subsection{Modelo pré-parto}
-
-Sem as variáveis do parto, o XGBoost atingiu AUROC de \BXgbAurocIC{} e AUPRC de \BXgbAuprcIC{}. Em relação ao modelo completo, a perda foi de $\Delta$AUROC = \dAB{} (IC \dABIC{}) e $\Delta$AUPRC = \dABprc{} (IC \dABprcIC{}). Os 5\% de maior risco no modelo pré-parto concentraram \BXgbTop{} dos óbitos, contra \AXgbTop{} no modelo completo (Figura~\ref{fig:captura}).
-
-As principais variáveis pelo SHAP (Figura~\ref{fig:shap}) foram:
-\begin{itemize}
-  \item no modelo completo: \shapTopA{}, as mesmas cinco do artigo, com anomalia e idade gestacional em ordem trocada;
-  \item no pré-parto: \shapTopB{}.
-\end{itemize}
-
-\begin{figure}[ht]
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.6\textwidth]{captura_top.png}
-\caption{Fração dos óbitos capturados ao priorizar os nascimentos de maior risco (XGBoost, teste de 2023).}
-\label{fig:captura}
-\end{figure}
-
-\begin{figure}[ht]
-\centering
-\includegraphics[width=\textwidth]{shap_importancia.png}
+\includegraphics[width=0.85\textwidth]{shap_importancia.png}
 \caption{Importância média |SHAP| das 12 principais variáveis (XGBoost, 20.000 nascimentos de 2023).}
 \label{fig:shap}
 \end{figure}
 
-\subsection{Calibração e subgrupos}
+\subsection{Calibração, utilidade clínica e subgrupos}
 
-Após a recalibração, a razão O/E no teste foi de \AXgbOE{} (A) e \BXgbOE{} (B). O Brier foi de \AXgbBrier{} e \BXgbBrier{}. O modelo sem recalibração já era bem calibrado (O/E \oeBrutoA{} e \oeBrutoB{}), porque a busca escolheu não reponderar as classes (Figura~\ref{fig:cal}).
-
-Entre os subgrupos (Figura~\ref{fig:sub}), a AUROC do modelo completo variou de \subAAurocMin{} a \subAAurocMax{}, com intervalos de confiança sobrepostos. No modelo pré-parto:
+\textbf{Calibração.} Após a isotônica, o O/E foi de \AXgbOE{} (A) e \BXgbOE{} (B).
 \begin{itemize}
-  \item a AUROC foi menor para mães com fundamental incompleto ou menos, \subBFundAuroc{}, do que com superior, \subBSupAuroc{}, mas os intervalos se sobrepõem;
-  \item o risco foi subestimado para filhos de mães brancas, com O/E de \subBBrancaOE{};
-  \item o risco também foi subestimado para residentes no interior, com O/E de \subBIntOE{}.
+  \item No modelo A, o intercepto de calibração foi \calACalInt{} e a inclinação \calACalInc{}.
+  \item No modelo B, o intercepto foi \calBCalInt{} e a inclinação \calBCalInc{}.
+\end{itemize}
+As inclinações próximas de 1 indicam que as previsões não são extremas demais. O intercepto positivo de B coincide com o \emph{drift} de prevalência: a TMN passou de \tmnAjuste{}‰ (2017--2021) para \tmnTeste{}‰ em 2023, e $\ln(8{,}20/7{,}70) \approx$ \driftLog{}.
+
+\textbf{Utilidade clínica.} Pela curva de decisão (Figura~\ref{fig:dca}), o benefício líquido dos dois modelos supera o de tratar todos ou nenhum em todos os limiares de 1\% a 20\%. Com $p_t = 5\%$, isto é, aceitando 19 falsos alarmes por óbito identificado, o modelo A sinaliza \sinalACinco{} dos nascimentos, com benefício líquido de \nbACinco{} por mil nascidos vivos. O modelo B tem benefício de \nbBCinco{} por mil; o máximo possível é a própria TMN, \tmnTeste{}.
+
+\textbf{H3.} A hipótese previa pior calibração na baixa escolaridade. Mas o O/E de mães com fundamental incompleto foi de \subBFundOE{} no modelo B e \subAFundOE{} no A, com IC que incluem 1 e se sobrepõem aos do ensino superior (\subBSupOE{} em B), então H3 não se confirmou. Outros dois achados (Figura~\ref{fig:sub}):
+\begin{itemize}
+  \item no modelo B, a AUROC foi numericamente menor na baixa escolaridade, \subBFundAuroc{} contra \subBSupAuroc{};
+  \item o risco foi subestimado para filhos de mães brancas (O/E \subBBrancaOE{}) e para o interior (O/E \subBIntOE{}).
 \end{itemize}
 
-\begin{figure}[ht]
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.9\textwidth]{calibracao.png}
-\caption{Mortalidade observada $\times$ risco previsto por decil de risco no teste de 2023, antes e depois da recalibração isotônica (escala logarítmica).}
-\label{fig:cal}
+\includegraphics[width=0.66\textwidth]{curva_decisao.png}
+\caption{Curva de decisão no teste de 2023: benefício líquido por mil nascidos vivos. A calibração por decil está no notebook.}
+\label{fig:dca}
 \end{figure}
 
-\begin{figure}[ht]
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{subgrupos.png}
-\caption{AUROC e razão O/E do XGBoost por subgrupo no teste de 2023, com IC 95\% por bootstrap.}
+\includegraphics[width=0.7\textwidth]{subgrupos.png}
+\caption{AUROC e O/E do XGBoost por subgrupo no teste de 2023, com IC 95\% por bootstrap.}
 \label{fig:sub}
 \end{figure}
 
 \subsection{Sensibilidade ao linkage}
 
-Sem as passadas tolerantes, a AUROC foi de \sensAAuroc{} (A) e \sensBAuroc{} (B), contra \AXgbAuroc{} e \BXgbAuroc{} com todos os pares. A AUPRC foi de \sensAAuprc{} e \sensBAuprc{}.
+O XGBoost foi reajustado com os mesmos hiperparâmetros e rótulos alternativos no ajuste e na validação:
+\begin{itemize}
+  \item \textbf{estrito:} os nascimentos pareados nas passadas 3--6 saem;
+  \item \textbf{pior caso:} esses nascimentos ficam, mas rotulados como sobreviventes.
+\end{itemize}
+Os dois cenários foram avaliados no \emph{mesmo} teste de 2023 completo (Tabela~\ref{tab:sens}).
+
+A discriminação praticamente não muda: no cenário estrito, $\Delta$AUROC = \sensAEstDelta{} no modelo A. Já o O/E sobe para \sensAEstOE{}--\sensBPiorOE{}, porque com menos positivos no treino o modelo aprende uma prevalência menor.
+
+\begin{table}[!htbp]
+\centering
+\caption{Sensibilidade aos rótulos do linkage (XGBoost, mesmo teste de 2023; $\Delta$ por bootstrap pareado).}
+\label{tab:sens}
+\small
+\setlength{\tabcolsep}{4pt}
+\tabSens
+\end{table}
 
 % ---------------------------------------------------------------------------
 \section{Discussão}
 
-\textbf{H1 (reprodução).} O resultado confirma a hipótese. Com dados abertos e linkage sem identificadores, o XGBoost atingiu AUROC de \AXgbAuroc{} e concentrou \AXgbTop{} dos óbitos nos 5\% de maior risco, próximo dos valores do artigo (0,971 e mais de 90\%). As cinco principais variáveis também foram as mesmas.
+\textbf{H1 foi confirmada.} Com dados abertos, o XGBoost teve AUROC de \AXgbAuroc{} e concentrou \AXgbTop{} dos óbitos nos 5\% de maior risco, contra 0,971 e mais de 90\% no artigo, com as mesmas cinco variáveis principais. Esse resultado é robusto ao linkage: nem descartar nem rotular como sobreviventes os pares duvidosos muda a AUROC.
 
-A diferença residual tem três explicações plausíveis, que não se excluem:
+A diferença residual para o artigo é compatível com três fatores: os $\approx$15\% de óbitos sem par verdadeiro, que são menos extremos e, portanto, mais difíceis; a heterogeneidade do estado; e a pior qualidade da DN e da DO no interior.
+
+\textbf{H2 foi confirmada em parte.} Houve queda real ($\Delta$AUROC = \dAB{}, $\Delta$AUPRC = \dABprc{}), mas o modelo B manteve AUROC de \BXgbAuroc{} e benefício líquido positivo, quase tudo pela idade gestacional. O uso adequado é delimitado: estimar, na admissão para o parto, o risco dado que o nascimento ocorre agora. Isso apoia a decisão sobre transferência \emph{in utero} para uma maternidade com UTI neonatal e o preparo da equipe. O modelo não serve para triagem precoce da gestação, porque a idade gestacional do parto e as consultas acumuladas não são conhecidas semanas antes.
+
+\textbf{H3 não foi confirmada.} A subestimação no interior tem duas explicações possíveis.
 \begin{itemize}
-  \item o pareamento de \pctPareado{}: os óbitos não pareados ficam rotulados como sobreviventes;
-  \item a população estadual é mais heterogênea do que a de um único município;
-  \item a qualidade de preenchimento da DN varia entre os municípios do interior.
+  \item \textbf{Linkage diferencial.} O pareamento é menor no interior (\linkInt{} contra \linkCap{}). Como os rótulos de treino e teste vêm do mesmo linkage, esse viés afeta sobretudo a TMN absoluta de cada região. Ele só gera O/E $>$ 1 se a completude mudar entre os anos, o que não foi testado.
+  \item \textbf{Fatores regionais} não capturados pela DN.
 \end{itemize}
+Para mães brancas, o linkage não é a explicação, porque a taxa de pareamento por raça/cor é quase uniforme. \cite{ramos2025} encontraram captura equivalente entre grupos, o que é coerente com a homogeneidade do nosso modelo A.
 
-No limiar escolhido em 2022, a sensibilidade é maior e a precisão menor do que no artigo. Essa diferença decorre da escolha do limiar, e não do modelo.
+\textbf{Calibração e \emph{drift}.} O modelo é bem calibrado no sentido fraco (inclinação $\approx$ 1). A calibração absoluta, porém, depende de dois fatores externos ao modelo: a completude do linkage, vista na sensibilidade, e o aumento da TMN em 2023. Em uso real, seria preciso recalibrar o intercepto periodicamente.
 
-\textbf{H2 (pré-parto).} A hipótese se confirma só em parte. A perda foi real ($\Delta$AUROC = \dAB{}) e grande em AUPRC, mas o modelo pré-parto ficou acima do esperado, com AUROC de \BXgbAuroc{}. Priorizando 5\% das gestantes na admissão, ele captaria \BXgbTop{} dos óbitos neonatais, quase todo esse poder vindo da idade gestacional e do pré-natal.
-
-Há uma ressalva: usamos a idade gestacional registrada no parto, que é uma aproximação da estimativa disponível na admissão. Na prática, esse modelo serviria à regulação de gestantes de alto risco para maternidades com UTI neonatal, e não ao cuidado depois do nascimento.
-
-\textbf{H3 (calibração e equidade).} A hipótese tem apoio fraco. O modelo completo tem calibração e discriminação homogêneas entre os subgrupos. No pré-parto, a AUROC é numericamente menor na baixa escolaridade, mas os intervalos se sobrepõem. A subestimação para filhos de mães brancas e para o interior sugere que variáveis socioeconômicas e regionais carregam, nesse modelo, parte do risco que no modelo completo é explicado pelo estado do recém-nascido.
-
-\textbf{Limitações.}
-\begin{itemize}
-  \item Cerca de 10\% dos óbitos não foram pareados, e os falsos pares introduzem ruído no rótulo. A análise de sensibilidade indica, porém, que o ruído não altera as conclusões.
-  \item A validação é temporal, mas não externa, porque usa um único estado.
-  \item O desempenho alto do modelo completo vem de variáveis medidas depois do nascimento, então ele identifica recém-nascidos já graves, e não uma chance de prevenção antes do parto.
-  \item Os subgrupos amarelo e indígena não tiveram óbitos suficientes para análise.
-\end{itemize}
+\textbf{Limitações.} Os rótulos são imperfeitos ($\approx$15\% dos óbitos sem par verdadeiro); a validação é temporal, mas não externa; o modelo A usa variáveis posteriores ao nascimento; o bootstrap ignora a dependência entre gêmeos; e não houve óbitos suficientes para analisar mães amarelas e indígenas.
 
 % ---------------------------------------------------------------------------
 \section{Conclusão}
 
-É possível reproduzir, com dados totalmente abertos, um modelo brasileiro de predição de mortalidade neonatal com desempenho próximo ao publicado. O linkage por chaves compostas pareou \pctPareado{} dos óbitos, taxa comparável à de dados identificados, e pode ser reaplicado a qualquer UF. Um modelo restrito à admissão para o parto mantém AUROC de \BXgbAuroc{} e boa calibração.
+É possível reproduzir, só com dados abertos, um modelo brasileiro de predição de mortalidade neonatal com discriminação próxima à publicada, e esse resultado é robusto aos erros do linkage. A calibração absoluta, ao contrário, é sensível ao linkage e ao \emph{drift} temporal. Um modelo na admissão para o parto mantém AUROC de \BXgbAuroc{} e benefício líquido positivo, para decisões de transferência \emph{in utero}.
 
-Como trabalhos futuros:
-\begin{itemize}
-  \item validação externa em outras UFs;
-  \item etapa probabilística no linkage para recuperar os óbitos não pareados;
-  \item extensão ao óbito pós-neonatal;
-  \item idade gestacional estimada no pré-natal;
-  \item avaliação do uso do escore junto a gestores da rede de atenção materno-infantil.
-\end{itemize}
+Como trabalhos futuros, ficam a validação externa em outras UFs, uma etapa probabilística no linkage para recuperar os óbitos com campos ausentes, a avaliação da completude do linkage por ano e região e a avaliação de impacto junto à rede de atenção materno-infantil.
 
-\textbf{Reprodutibilidade.} O código (download, linkage, pré-processamento, modelos, avaliação), os testes, o notebook e os geradores deste relatório e dos slides estão no repositório do projeto. O comando \texttt{python -m src.experimento} refaz todos os números a partir do FTP do DATASUS.
+\textbf{Reprodutibilidade.} O código, os testes, o notebook, os geradores deste relatório e dos slides e o manifesto dos dados estão em \url{\repo}. O comando \texttt{python -m src.experimento} refaz todos os números a partir do FTP do DATASUS.
 
 \bibliographystyle{sbc}
 \bibliography{refs}

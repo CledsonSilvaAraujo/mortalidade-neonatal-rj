@@ -1,4 +1,4 @@
-"""Gera slides/apresentacao.pptx (16:9, 13 slides) a partir de data/resultados.pkl e figuras/.
+"""Gera slides/apresentacao.pptx (16:9, 14 slides) a partir de data/resultados.pkl e figuras/.
 
 Todos os números vêm do experimento gravado; nada é digitado à mão.
 Uso: .venv/bin/python slides/gerar_slides.py
@@ -194,7 +194,12 @@ pct_link = rel["n_pareados"] / rel["n_obitos"]
 tmn_sim = 1000 * rel["por_ano"]["obitos_neonatais_sim"].sum() / rel["por_ano"]["nascidos_vivos"].sum()
 fp = rel["falsos_pares"]
 sub = pd.read_csv(FIG / "subgrupos.csv")
-sens = R["sensibilidade"]
+C = R["complementares"]
+sens = C["sensibilidade"]
+ps_link = C["vies_linkage"]["por_subgrupo"].set_index(["Variável", "Categoria"])["Pareados (%)"]
+link_cap, link_int = ps_link[("Residência", "Capital")] / 100, ps_link[("Residência", "Interior")] / 100
+f_pond = ((fp["falsos_ESCMAE"] + fp["falsos_QTDFILMORT"]) / 2 * fp["n_pares"]).sum() / fp["n_pares"].sum() / 100
+pct_verd = pct_link * (1 - f_pond)
 
 prs = Presentation()
 prs.slide_width, prs.slide_height = Inches(W), Inches(H)
@@ -266,7 +271,7 @@ itens = [
     ("Risco antes do parto", "Quanto se perde sem Apgar, peso e anomalia, usando só o que se sabe na admissão "
      "para o parto?", "H2: queda substancial, ainda útil"),
     ("Calibração e equidade", "O modelo erra mais para algum grupo de raça/cor, escolaridade da mãe ou "
-     "região?", "H3: pior na baixa escolaridade"),
+     "região?", "H3: calibração pior na baixa escolaridade"),
 ]
 for i, (t, d_, h) in enumerate(itens):
     x = MARGEM + i * 4.1
@@ -314,14 +319,15 @@ cartao(s, MARGEM, 5.0, 2.7, 1.9, MENTA)
 texto(s, MARGEM + 0.25, 5.1, 2.3, 0.8, pct(pct_link), tamanho=34, fonte=TITULO, negrito=True, cor=PETROLEO)
 texto(s, MARGEM + 0.25, 5.95, 2.3, 0.9, f"dos {milhar(rel['n_obitos'])} óbitos pareados", tamanho=13)
 cartao(s, MARGEM + 2.9, 5.0, 2.7, 1.9, MENTA)
-texto(s, MARGEM + 3.15, 5.1, 2.3, 0.8, "90,8%", tamanho=34, fonte=TITULO, negrito=True, cor=CINZA)
-texto(s, MARGEM + 3.15, 5.95, 2.3, 0.9, "Maia et al. (2017), com dados identificados", tamanho=13)
+texto(s, MARGEM + 3.15, 5.1, 2.3, 0.8, f"≈{pct(pct_verd, 0)}", tamanho=34, fonte=TITULO, negrito=True, cor=CORAL)
+texto(s, MARGEM + 3.15, 5.95, 2.3, 0.9, "com par verdadeiro, descontados os falsos pares", tamanho=13)
 figura(s, "linkage_por_ano.png", 6.6, 1.8, w=6.2)
 f12 = fp.loc[[1, 2]]
 texto(s, 6.7, 5.2, 6.0, 1.6,
       f"Falsos pares estimados nas passadas 1–2 (que somam {pct(f12['n_pares'].sum() / rel['n_pareados'], 0)} dos pares): "
       f"até {int(f12[['falsos_ESCMAE', 'falsos_QTDFILMORT']].max().max())}%. As passadas tolerantes chegam a "
-      f"{int(fp[['falsos_ESCMAE', 'falsos_QTDFILMORT']].max().max())}% e são testadas na análise de sensibilidade.",
+      f"{int(fp[['falsos_ESCMAE', 'falsos_QTDFILMORT']].max().max())}%. Pareamento: {pct(link_cap)} na capital, "
+      f"{pct(link_int)} no interior. Óbitos sem peso na DO quase não pareiam.",
       tamanho=14, cor=CINZA)
 notas(s, "Esta é a principal contribuição metodológica: um linkage reproduzível com dados abertos, com taxa de "
          "pareamento comparável à obtida com nomes e endereços.")
@@ -381,49 +387,65 @@ s = novo()
 titulo(s, "Quanto vale o momento do parto?", "XGBoost: conjunto completo × pré-parto")
 cartao(s, MARGEM, 1.9, 3.6, 2.2, MENTA)
 texto(s, MARGEM + 0.3, 2.0, 3.0, 0.9, num(xb.loc["AUROC", "valor"]), tamanho=40, fonte=TITULO, negrito=True, cor=PETROLEO)
-texto(s, MARGEM + 0.3, 3.0, 3.0, 1.0, "AUROC do modelo pré-parto (acima do esperado em H2)", tamanho=14)
+texto(s, MARGEM + 0.3, 3.0, 3.0, 1.0, "AUROC do modelo na admissão para o parto", tamanho=14)
 cartao(s, MARGEM, 4.4, 3.6, 2.4, MENTA)
 texto(s, MARGEM + 0.3, 4.5, 3.0, 0.9, f"−{num(d_auc['delta'])}", tamanho=40, fonte=TITULO, negrito=True, cor=CORAL)
 texto(s, MARGEM + 0.3, 5.5, 3.2, 1.2, f"ΔAUROC (IC {num(d_auc['ic_inf'])}–{num(d_auc['ic_sup'])}); "
       f"ΔAUPRC −{num(d_prc['delta'])}", tamanho=14)
 figura(s, "shap_importancia.png", 4.5, 1.9, w=8.3)
-texto(s, 4.5, 5.6, 8.3, 1.3, "Sem as variáveis do parto, a idade gestacional domina; consultas de pré-natal, "
-      "escolaridade e raça/cor da mãe ganham peso.", tamanho=15)
+texto(s, 4.5, 5.6, 8.3, 1.4, [
+    "A idade gestacional domina, e consultas e Kotelchuck também dependem dela.",
+    [("Uso: ", {"negrito": True, "cor": PETROLEO}),
+     ("risco na admissão, dado que o parto é agora (transferência in utero). Não serve para triagem precoce.", {})],
+], tamanho=14)
 notas(s, "O modelo pré-parto perde discriminação, mas ainda separa bem, principalmente pela idade gestacional. "
          "Ele é o que pode ser usado antes do nascimento, para regulação.")
 
-# 11 --------------------------------------------------------------- calibração e subgrupos
+# 11 --------------------------------------------------------------- calibração e utilidade
 s = novo()
-titulo(s, "Calibração e subgrupos", "XGBoost recalibrado no teste de 2023, IC 95% por bootstrap")
-figura(s, "subgrupos.png", MARGEM, 1.6, w=8.2)
-a_sub = sub[sub["Conjunto"] == "A · completo"]
-b_sub = sub[sub["Conjunto"] == "B · pré-parto"]
-marcadores(s, 9.0, 1.8, 3.8, 5.2, [
-    f"O/E global: {num(xa.loc['O/E', 'valor'], 2)} (A) e {num(xb.loc['O/E', 'valor'], 2)} (B).",
-    f"No modelo A, a AUROC varia de {num(a_sub['AUROC'].min())} a {num(a_sub['AUROC'].max())} entre subgrupos, "
-    "com IC sobrepostos.",
-    f"No pré-parto, a AUROC é menor na baixa escolaridade ({num(b_sub.set_index('Subgrupo').loc['Fund. incompleto ou menos', 'AUROC'])}) "
-    "e o risco de filhos de mães brancas é subestimado (O/E "
-    f"{num(b_sub.set_index('Subgrupo').loc['Branca', 'O/E'], 2)}).",
+titulo(s, "Calibração e utilidade clínica", "XGBoost recalibrado, teste de 2023")
+figura(s, "curva_decisao.png", MARGEM, 1.7, w=7.8)
+ca, cb = C["calibracao"]["A_completo"]["calibrado"], C["calibracao"]["B_pre_parto"]["calibrado"]
+dca = C["decisao"]["A_completo"].set_index("limiar")
+marcadores(s, 8.7, 1.8, 4.1, 5.3, [
+    f"Inclinação de calibração: {num(ca['inclinacao'], 2)} (A) e {num(cb['inclinacao'], 2)} (B), ideal 1.",
+    f"Intercepto de B: {num(cb['intercepto'], 3)} ≈ ln(8,20/7,70). É o aumento da TMN em 2023 (drift).",
+    f"Benefício líquido acima de tratar todos/nenhum de 1% a 20%. Com pt = 5%: {num(1000 * dca.loc[0.05, 'modelo'], 1)} "
+    f"por mil, sinalizando {pct(dca.loc[0.05, 'fração sinalizada'])} dos nascimentos.",
 ], tamanho=15)
-notas(s, "A calibração global é boa. As diferenças por subgrupo são pequenas; a maior parte dos IC se sobrepõe, "
-         "então H3 tem apoio apenas fraco.")
+
+# 12 --------------------------------------------------------------- subgrupos
+s = novo()
+titulo(s, "Subgrupos e H3", "IC 95% por bootstrap dentro de cada subgrupo")
+figura(s, "subgrupos.png", MARGEM, 1.6, w=8.2)
+a_sub = sub[sub["Conjunto"] == "A · completo"].set_index("Subgrupo")
+b_sub = sub[sub["Conjunto"] == "B · pré-parto"].set_index("Subgrupo")
+fund = b_sub.loc["Fund. incompleto ou menos"]
+marcadores(s, 9.0, 1.8, 3.8, 5.2, [
+    [("H3 não confirmada: ", {"negrito": True, "cor": PETROLEO}),
+     (f"O/E na baixa escolaridade {num(fund['O/E'], 2)} (IC {num(fund['O/E_inf'], 2)}–{num(fund['O/E_sup'], 2)}), "
+      "que inclui 1.", {})],
+    f"Modelo A homogêneo: AUROC de {num(a_sub['AUROC'].min())} a {num(a_sub['AUROC'].max())}.",
+    f"Modelo B subestima mães brancas (O/E {num(b_sub.loc['Branca', 'O/E'], 2)}) e o interior "
+    f"(O/E {num(b_sub.loc['Interior', 'O/E'], 2)}). No interior, o pareamento também é menor.",
+], tamanho=15)
 
 # 12 --------------------------------------------------------------- limitações
 s = novo()
-titulo(s, "Sensibilidade e limitações")
-sa, sb = sens["A_completo"], sens["B_pre_parto"]
-cartao(s, MARGEM, 1.6, W - 2 * MARGEM, 1.4, MENTA)
-texto(s, MARGEM + 0.3, 1.72, W - 2 * MARGEM - 0.6, 1.2, [
-    [("Só as passadas 1–2 do linkage: ", {"negrito": True, "cor": PETROLEO}),
-     (f"AUROC {num(sa.loc['AUROC', 'valor'])} (A) e {num(sb.loc['AUROC', 'valor'])} (B), contra "
-      f"{num(xa.loc['AUROC', 'valor'])} e {num(xb.loc['AUROC', 'valor'])} com todas. "
-      "Os falsos pares não explicam o desempenho.", {})],
-], tamanho=16)
+titulo(s, "Sensibilidade ao linkage e limitações")
+se, sp = sens[("A_completo", "estrito")], sens[("A_completo", "pior caso")]
+cartao(s, MARGEM, 1.6, W - 2 * MARGEM, 1.5, MENTA)
+texto(s, MARGEM + 0.3, 1.7, W - 2 * MARGEM - 0.6, 1.35, [
+    [("Mesmo teste de 2023, rótulos alternativos no treino: ", {"negrito": True, "cor": PETROLEO}),
+     (f"ΔAUROC {num(se['delta_auroc']['delta'], 4)} (estrito) e {num(sp['delta_auroc']['delta'], 4)} (pior caso), "
+      "com IC que incluem 0. A discriminação é robusta,", {})],
+    (f"mas o O/E sobe para {num(se['metricas'].loc['O/E', 'valor'], 2)}–{num(sp['metricas'].loc['O/E', 'valor'], 2)}: "
+     "a calibração depende da completude do linkage."),
+], tamanho=15)
 lims = [
-    ("Óbitos não pareados", f"{pct(1 - pct_link, 0)} dos óbitos ficam rotulados como sobreviventes."),
+    ("Rótulos imperfeitos", f"≈{pct(1 - pct_verd, 0)} dos óbitos sem par verdadeiro; menos extremos e mais do interior."),
     ("Um estado, anos recentes", "Validação temporal, mas não externa (outra UF)."),
-    ("Idade gestacional", "No pré-parto usamos a IG do parto, aproximação da IG na admissão."),
+    ("Idade gestacional", "No modelo B é a IG do parto: vale para a admissão, não para semanas antes."),
     ("Uso clínico", f"Precisão de {pct(xa.loc['Precisão', 'valor'], 0)} no limiar (A): "
      "alertas precisam de desenho de fluxo."),
 ]
@@ -441,10 +463,10 @@ s = novo(PETROLEO)
 texto(s, MARGEM, 0.5, W - 2 * MARGEM, 0.8, "Conclusões e próximos passos", tamanho=36, fonte=TITULO,
       negrito=True, cor=BRANCO)
 conclusoes = [
-    f"Linkage aberto e reproduzível: {pct(pct_link)} dos óbitos pareados, como com dados identificados.",
+    f"Linkage aberto: {pct(pct_link)} pareados (≈{pct(pct_verd, 0)} verdadeiros); discriminação robusta a ele.",
     f"Reprodução do artigo no RJ: AUROC {num(xa.loc['AUROC', 'valor'])} e {pct(xa.loc['Óbitos no top 5%', 'valor'], 0)} "
     "dos óbitos no top 5%.",
-    f"Antes do parto: AUROC {num(xb.loc['AUROC', 'valor'])}, bem calibrado, útil para regulação.",
+    f"Na admissão para o parto: AUROC {num(xb.loc['AUROC', 'valor'])} e benefício líquido positivo.",
 ]
 for i, c in enumerate(conclusoes):
     y = 1.65 + i * 1.05
@@ -453,11 +475,120 @@ for i, c in enumerate(conclusoes):
 cartao(s, MARGEM, 4.95, W - 2 * MARGEM, 1.95, PETROLEO_ESCURO)
 texto(s, MARGEM + 0.35, 5.1, 11.4, 0.45, "Trabalhos futuros", tamanho=18, negrito=True, cor=MENTA_MEDIA)
 texto(s, MARGEM + 0.35, 5.6, 11.4, 1.3,
-      "Validação externa em outras UFs · linkage probabilístico nas passadas tolerantes · óbito pós-neonatal · "
-      "IG estimada no pré-natal · avaliação de impacto com gestores",
+      "Validação externa em outras UFs · etapa probabilística no linkage · completude do linkage por ano e região · "
+      "recalibração periódica (drift) · avaliação de impacto com gestores",
       tamanho=17, cor=BRANCO)
 notas(s, "Em resumo: é possível reproduzir o modelo do artigo com dados abertos, e um modelo pré-parto já "
          "tem desempenho útil. Obrigado.")
+
+# ------------------------------------------------------------------ notas do apresentador (~15 min)
+am_ = pd.DataFrame(R["amostras"]).T
+ca_, cb_ = C["calibracao"]["A_completo"]["calibrado"], C["calibracao"]["B_pre_parto"]["calibrado"]
+vl_ = C["vies_linkage"]["perfil"]
+NOTAS = [
+    # 1
+    "Boa tarde. Vou apresentar meu projeto de aplicação: prever o óbito neonatal no estado do Rio de Janeiro "
+    "usando só dados abertos do SUS. O trabalho parte de um artigo brasileiro, que fez isso em São Paulo com "
+    "dados identificados. A pergunta central é se dá para chegar ao mesmo resultado sem acesso privilegiado aos "
+    "dados. Para isso, construí um linkage entre nascimentos e óbitos sem nenhum identificador. Vou mostrar como "
+    "o linkage foi feito, o quanto ele erra e se esses erros afetam as conclusões. Depois apresento os modelos, "
+    "a calibração, a utilidade clínica e as limitações.",
+    # 2
+    f"Óbito neonatal é o que ocorre de 0 a 27 dias de vida. É a maior parte da mortalidade infantil. No RJ, "
+    f"entre 2017 e 2023, foram {num(tmn_sim, 1)} óbitos por mil nascidos vivos, {milhar(rel['n_obitos'])} ao todo. Boa "
+    "parte é evitável, e o risco se concentra em poucos nascimentos. A Declaração de Nascido Vivo é preenchida "
+    "para todo nascimento, em qualquer município. Um escore calculado a partir dela pode ajudar a priorizar UTI "
+    "neonatal, transporte e visita domiciliar. A pergunta é se isso é possível com os dados que qualquer "
+    "pesquisador pode baixar.",
+    # 3
+    "O artigo de referência é de Batista e colegas, 2021, na BMC Pediatrics. Eles parearam nascimentos e óbitos "
+    "de São Paulo usando nome e endereço, cedidos pela prefeitura. Com as 23 variáveis da DN, treinaram cinco "
+    "algoritmos com validação temporal: treino até 2016 e teste em 2017. O XGBoost teve AUROC de 0,971, e os 5% "
+    "de maior risco concentraram mais de 90% dos óbitos. As variáveis mais importantes foram Apgar, peso, "
+    "anomalia e idade gestacional. É um resultado forte, mas numa única cidade e com dados que não estão "
+    "disponíveis para terceiros.",
+    # 4
+    "Daí vêm três hipóteses, as mesmas da minha proposta. H1: com dados abertos, o modelo completo atinge AUROC "
+    "de pelo menos 0,95. H2: um modelo só com o que se sabe na admissão para o parto perde desempenho, mas "
+    "continua útil. H3: a calibração piora nos filhos de mães com menor escolaridade. As lacunas de calibração e "
+    "de validação externa também aparecem na revisão sistemática de Mangold: só 45% dos estudos reportam "
+    "calibração. Vou mostrar o resultado de cada hipótese, inclusive a que não se confirmou.",
+    # 5
+    f"Os dados são o SINASC e o SIM do DATASUS, por residência no RJ, baixados do FTP público, sem cadastro. São "
+    f"{milhar(n_nv)} nascidos vivos. O SIM vai até 2024 para captar quem nasceu em dezembro de 2023. O desenho é "
+    f"temporal, como no artigo: ajuste em 2017 a 2021, validação em 2022 e teste em 2023, usado uma única vez. "
+    f"Um detalhe importante: a TMN do teste, {num(am_.iloc[2]['TMN (‰)'], 2)}, é maior que a do treino, "
+    f"{num(am_.iloc[0]['TMN (‰)'], 2)}. Isso vai aparecer na calibração. Registrei o hash SHA-256 de cada "
+    "arquivo, porque o DATASUS revisa os dados.",
+    # 6
+    f"Esta é a parte central. Os arquivos públicos não têm o número da DN nem nomes. Mas a Declaração de Óbito "
+    f"de menores de um ano repete dados do nascimento. Então pareio por chaves compostas, em cascata, aceitando "
+    f"só pares únicos. Pareei {pct(pct_link)} dos óbitos. Parte desses pares é falsa: estimei isso comparando "
+    f"campos que não entram nas chaves, e o resultado é cerca de {pct(pct_verd, 0)} dos óbitos com par verdadeiro. "
+    f"A estimativa supõe que a primeira passada, com oito campos, não tem falsos pares. O pareamento é "
+    f"{pct(link_cap)} na capital e {pct(link_int)} no interior. Os não pareados são os óbitos sem peso, semanas "
+    f"ou idade da mãe na DO: {num(vl_.loc['Peso ausente (%)', 'Não pareados'], 0)}% deles não têm peso.",
+    # 7
+    "Comparo dois conjuntos de variáveis. O A é o completo, como no artigo, com Apgar, peso e anomalia. O B tem "
+    "só o que se sabe na admissão para o parto. Atenção: a idade gestacional do B é a do parto, e consultas e "
+    "Kotelchuck dependem dela. Então o B responde a qual é o risco se o parto acontece agora, e não semanas "
+    "antes. Uso três modelos: regressão logística como linha de base, XGBoost e LightGBM. Os hiperparâmetros "
+    "vêm de busca bayesiana, maximizando a AUPRC, que é a métrica certa com 0,8% de positivos. Não usei SMOTE, "
+    "para preservar a calibração.",
+    # 8
+    f"No teste de 2023, o XGBoost completo teve AUROC de {num(xa.loc['AUROC', 'valor'])} e AUPRC de "
+    f"{num(xa.loc['AUPRC', 'valor'])}. O artigo teve 0,971 e 0,586. H1 se confirma. A logística fica muito perto: "
+    f"o ganho do XGBoost em AUROC é de {num(R['deltas']['XGBoost − LR, A_completo (AUROC)']['delta'])}, com limite "
+    "inferior praticamente zero, e o ganho mais claro está na AUPRC. Na prática, as variáveis da DN carregam "
+    "quase toda a informação, e o algoritmo importa pouco. A precisão no limiar é maior e a sensibilidade menor "
+    "que no artigo, mas isso decorre da escolha do limiar.",
+    # 9
+    f"Nas curvas, as linhas cheias são o modelo completo e as tracejadas, o pré-parto. Os três algoritmos quase "
+    f"se sobrepõem. À direita está a métrica operacional: priorizando 5% dos nascimentos, o modelo completo "
+    f"captura {pct(xa.loc['Óbitos no top 5%', 'valor'], 0)} dos óbitos e o pré-parto, "
+    f"{pct(xb.loc['Óbitos no top 5%', 'valor'], 0)}. Ramos e colegas, em 2025, com dados nacionais, encontraram mais "
+    "de 85%, o que é coerente. A diferença para os 90% do artigo é compatível com os óbitos sem par verdadeiro, "
+    "que são menos extremos e mais difíceis, e com a heterogeneidade do estado.",
+    # 10
+    f"O modelo pré-parto perde {num(d_auc['delta'])} de AUROC e bem mais de AUPRC, mas ainda chega a "
+    f"{num(xb.loc['AUROC', 'valor'])}. H2 se confirma em parte: perdeu, mas continua útil. Pelo SHAP, quase tudo vem "
+    "da idade gestacional. Por isso, o uso precisa ser bem delimitado: na admissão, com o parto iminente, para "
+    "decidir transferência in utero para uma maternidade com UTI neonatal e preparar a equipe. Ele não serve para "
+    "triagem precoce da gestação, porque nem a idade gestacional do parto nem as consultas acumuladas são "
+    "conhecidas semanas antes. Essa é uma pergunta provável da banca.",
+    # 11
+    f"Calibração e utilidade clínica. A inclinação de calibração é {num(ca_['inclinacao'], 2)} no A e "
+    f"{num(cb_['inclinacao'], 2)} no B, praticamente 1, então as previsões não são extremas demais. O intercepto do B "
+    f"é {num(cb_['intercepto'], 3)}, que é exatamente o logaritmo de 8,20 sobre 7,70: a mortalidade subiu em 2023. É "
+    "drift de prevalência, não defeito do modelo. Em uso real, o intercepto precisaria ser recalibrado "
+    "periodicamente. A curva de decisão mostra benefício líquido acima de tratar todos e de tratar nenhum em "
+    "todos os limiares de 1% a 20%. Esta é a métrica que diz se o modelo ajuda a decidir.",
+    # 12
+    f"Subgrupos e H3. A hipótese era calibração pior na baixa escolaridade. O O/E nesse grupo foi "
+    f"{num(fund['O/E'], 2)}, com intervalo que inclui 1 e se sobrepõe ao do ensino superior. Então H3 não se "
+    "confirmou, e prefiro dizer isso claramente a trocar a hipótese depois de ver os dados. O modelo completo é "
+    "homogêneo. O pré-parto subestima o risco para mães brancas e para o interior. No interior há uma explicação "
+    "alternativa: o pareamento é menor lá. Para raça/cor, o pareamento é quase igual entre os grupos, então o "
+    "linkage não explica.",
+    # 13
+    f"A pergunta mais provável é se os erros do linkage explicam os resultados. Para testar, reajustei o modelo "
+    f"com rótulos alternativos no treino, avaliando sempre no mesmo teste de 2023. No cenário estrito, removi os "
+    f"pares duvidosos. No pior caso, marquei-os como sobreviventes. A AUROC mudou "
+    f"{num(se['delta_auroc']['delta'], 4)} e {num(sp['delta_auroc']['delta'], 4)}, com intervalos que incluem zero. A "
+    f"discriminação é robusta. Mas o O/E sobe para até {num(sp['metricas'].loc['O/E', 'valor'], 2)}: a calibração "
+    "absoluta depende da completude do linkage. As limitações principais são os rótulos imperfeitos, a falta de "
+    "validação externa e o uso de variáveis do pós-parto no modelo A.",
+    # 14
+    "Para concluir. Primeiro, dá para reproduzir o resultado do artigo com dados totalmente abertos, e a "
+    "discriminação é robusta aos erros do linkage. Segundo, a calibração absoluta não é: depende da completude do "
+    "linkage e do drift temporal, então um uso real exigiria recalibração periódica. Terceiro, o modelo na "
+    "admissão para o parto tem desempenho útil para decisões de transferência. Como próximos passos: validar em "
+    "outros estados, acrescentar uma etapa probabilística ao linkage e avaliar o impacto com gestores. O código "
+    "e os dados de reprodução estão no repositório. Obrigado.",
+]
+assert len(NOTAS) == len(prs.slides), (len(NOTAS), len(prs.slides))
+for slide, t in zip(prs.slides, NOTAS):
+    notas(slide, t)
 
 prs.save(SAIDA)
 print(f"{len(prs.slides)} slides -> {SAIDA}")

@@ -430,19 +430,98 @@ fig.tight_layout(rect=(0, 0, 1, 0.95))
 fig.savefig(FIG / "subgrupos.png")
 
 # %% [markdown]
-# ### 5.6 Sensibilidade ao linkage
-# O XGBoost foi refeito (mesmos hiperparâmetros) descartando os pares das passadas 3 a 6, que têm taxa
-# estimada de falsos pares maior. Esses registros saem das três amostras. Se o desempenho quase não muda,
-# os falsos pares não explicam os resultados.
+# ### 5.6 Calibração fraca: intercepto e inclinação
+# Seguimos Van Calster et al. (2019).
+# - **Intercepto** (*calibration-in-the-large*): ideal 0; um valor positivo indica que o modelo subestima o risco.
+# - **Inclinação:** ideal 1; um valor menor que 1 indica previsões extremas demais.
+#
+# A TMN subiu de 7,70‰ (2017–2022) para 8,20‰ no teste de 2023. Essa mudança de prevalência (*drift*) empurra
+# o O/E para cima de 1 mesmo num modelo bem calibrado no passado.
 
 # %%
-sens = pd.DataFrame({
-    (NOME_CONJ[c], rot): R[fonte][c if fonte == "sensibilidade" else (c, "XGBoost")]["valor"]
-    for c in preprocess.CONJUNTOS
-    for fonte, rot in [("metricas", "todas as passadas"), ("sensibilidade", "passadas 1–2")]
-})
+C = R["complementares"]
+cal_tab = pd.DataFrame({(NOME_CONJ[c], t): v for c, d in C["calibracao"].items() for t, v in d.items()}).T
+cal_tab.to_csv(FIG / "calibracao_intercepto_inclinacao.csv")
+print("TMN por amostra (‰):", {k: round(v, 2) for k, v in C["tmn_por_amostra"].items()})
+cal_tab.round(3)
+
+# %% [markdown]
+# ### 5.7 Utilidade clínica: curva de decisão
+# O benefício líquido é $NB(p_t) = \frac{VP}{n} - \frac{FP}{n}\cdot\frac{p_t}{1-p_t}$ (Vickers e Elkin, 2006), comparado às
+# estratégias de tratar todos e de tratar nenhum. O limiar $p_t$ expressa quantos falsos alarmes se aceitam por
+# óbito identificado. Com $p_t = 5\%$, por exemplo, aceitam-se 19 falsos alarmes para cada verdadeiro.
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.6), sharey=True)
+for ax, conj in zip(axes, preprocess.CONJUNTOS):
+    d = C["decisao"][conj]
+    ax.plot(d["limiar"] * 100, d["modelo"] * 1000, color=COR["XGBoost"], label="XGBoost recalibrado")
+    ax.plot(d["limiar"] * 100, d["tratar todos"] * 1000, color=COR["LR"], ls="--", label="tratar todos")
+    ax.axhline(0, color=TINTA2, lw=1, label="tratar nenhum")
+    ax.set(xlabel="Limiar de risco $p_t$ (%)", ylim=(-1, 9))
+    ax.set_title(f"XGBoost · {NOME_CONJ[conj]}", loc="left", fontsize=10)
+axes[0].set_ylabel("Benefício líquido (por mil nascidos vivos)"); axes[0].legend(fontsize=8)
+fig.savefig(FIG / "curva_decisao.png")
+pd.concat({NOME_CONJ[c]: d.set_index("limiar").loc[[0.01, 0.02, 0.05, 0.1, 0.2]] for c, d in C["decisao"].items()}).round(5)
+
+# %% [markdown]
+# ### 5.8 Viés do linkage: óbitos pareados × não pareados
+# Os óbitos não pareados continuam na base rotulados como sobreviventes. Para ver quem eles são, comparamos as
+# características que a própria Declaração de Óbito informa, sem depender do pareamento. As chaves exigem peso,
+# idade da mãe e semanas preenchidos, então um óbito com esses campos ausentes tem menos chance de ser pareado.
+
+# %%
+vl = C["vies_linkage"]
+vl["perfil"].to_csv(FIG / "vies_linkage_perfil.csv")
+vl["por_subgrupo"].to_csv(FIG / "vies_linkage_subgrupos.csv", index=False)
+vl["perfil"].round(1)
+
+# %%
+vl["por_subgrupo"].round(1)
+
+# %% [markdown]
+# ### 5.9 Sensibilidade ao linkage
+# O XGBoost foi refeito com os mesmos hiperparâmetros e rótulos alternativos **no treino e na validação**.
+# - **Estrito:** os nascimentos pareados nas passadas 3–6 saem.
+# - **Pior caso:** esses nascimentos ficam, mas rotulados como sobreviventes.
+#
+# A avaliação é no **mesmo teste de 2023 completo**, com os rótulos principais. Assim, a diferença de AUROC em
+# relação ao modelo principal pode ser testada por bootstrap pareado.
+
+# %%
+linhas = []
+for (conj, cen), v in C["sensibilidade"].items():
+    m, d = v["metricas"]["valor"], v["delta_auroc"]
+    linhas.append({"Conjunto": NOME_CONJ[conj], "Cenário": cen, "Óbitos no treino": v["positivos_treino"],
+                   "AUROC": m["AUROC"], "AUPRC": m["AUPRC"], "Top 5%": m["Óbitos no top 5%"], "O/E": m["O/E"],
+                   "ΔAUROC vs principal": d["delta"], "IC inf": d["ic_inf"], "IC sup": d["ic_sup"]})
+for conj in preprocess.CONJUNTOS:
+    m = R["metricas"][(conj, "XGBoost")]["valor"]
+    linhas.append({"Conjunto": NOME_CONJ[conj], "Cenário": "principal", "AUROC": m["AUROC"], "AUPRC": m["AUPRC"],
+                   "Top 5%": m["Óbitos no top 5%"], "O/E": m["O/E"]})
+sens = pd.DataFrame(linhas).sort_values(["Conjunto", "Cenário"]).set_index(["Conjunto", "Cenário"])
 sens.to_csv(FIG / "sensibilidade_linkage.csv")
-sens.round(3)
+sens.round(4)
+
+# %% [markdown]
+# ### 5.10 Avaliação das premissas
+# - **Colinearidade (regressão logística):** as contagens do histórico obstétrico são quase uma soma umas das
+#   outras (gestações ≈ partos + perdas). O VIF mede quanto isso infla a variância dos coeficientes. A
+#   colinearidade afeta a interpretação dos coeficientes, mas não a predição. A penalização L2 estabiliza o ajuste,
+#   e as árvores não dependem dessa premissa.
+# - **Mecanismo dos ausentes:** se a TMN difere muito entre registros com e sem o campo, a ausência não é
+#   aleatória (MCAR descartado). Ela é informativa, e por isso usamos indicadores de ausência ou a categoria
+#   "ignorado", em vez de só imputar.
+# - **Independência:** gêmeos compartilham mãe e gestação. Medimos quanto eles pesam e se a AUROC muda sem eles.
+
+# %%
+C["colinearidade"].round(2)
+
+# %%
+C["ausencia"].round(2)
+
+# %%
+pd.Series(C["gemelares"]).round(4)
 
 # %% [markdown]
 # ## 6. Conclusão

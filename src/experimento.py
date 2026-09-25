@@ -13,7 +13,7 @@ import pandas as pd
 import shap
 from sklearn.metrics import average_precision_score, roc_auc_score
 
-from src import download, evaluate, models, preprocess
+from src import complementares, download, evaluate, models, preprocess
 
 RESULTADOS = download.DADOS / "resultados.pkl"
 C_LR = [0.01, 0.1, 1.0]
@@ -41,7 +41,7 @@ def rodar(caminho: Path = RESULTADOS) -> dict:
 
     R = {"fluxo": fluxo, "linkage": rel_linkage, "amostras": {}, "estudos": {}, "params": {},
          "metricas": {}, "predicoes": {}, "limiares": {}, "curvas": {}, "calibracao": {},
-         "subgrupos": {}, "shap": {}, "deltas": {}, "sensibilidade": {}}
+         "subgrupos": {}, "shap": {}, "deltas": {}}
     for nome, df in [("ajuste 2017–2021", ajuste), ("validação 2022", valid), ("teste 2023", teste)]:
         R["amostras"][nome] = {"n": len(df), "óbitos": int(df["obito_neonatal"].sum()),
                                "TMN (‰)": 1000 * df["obito_neonatal"].mean()}
@@ -107,22 +107,9 @@ def rodar(caminho: Path = RESULTADOS) -> dict:
                 y_te, R["predicoes"][(conj, "XGBoost")]["bruto"],
                 R["predicoes"][(conj, "LR")]["bruto"], metrica)
 
-    # Sensibilidade ao linkage: descarta os pares das passadas tolerantes (3 em diante),
-    # nas quais a taxa estimada de falsos pares é maior, e refaz o XGBoost completo.
-    estrito = lambda df: df[df["passada_linkage"].isna() | (df["passada_linkage"] <= 2)]
-    for conj in preprocess.CONJUNTOS:
-        params = {k: v for k, v in R["params"][(conj, "XGBoost")].items()
-                  if k not in ("scale_pos_weight", "n_arvores")}
-        spw = R["params"][(conj, "XGBoost")]["scale_pos_weight"]
-        (X_aj, y_aj), (X_va, y_va) = preprocess.xy(estrito(ajuste), conj), preprocess.xy(estrito(valid), conj)
-        X_te_e, y_te_e = preprocess.xy(estrito(teste), conj)
-        cal = models.Recalibrado(models.ajustar_xgb(X_aj, y_aj, X_va, y_va, params, spw), X_va, y_va)
-        limiar = evaluate.limiar_max_f1(y_va, cal.predict_proba(X_va)[:, 1])
-        R["sensibilidade"][conj] = evaluate.com_ic(y_te_e, cal.predict_proba(X_te_e)[:, 1], limiar,
-                                                   escore=cal.bruto(X_te_e))
-        _registrar(f"{conj} sensibilidade linkage estrito", t0)
-
     R["y_teste"] = y_te
+    R["complementares"] = complementares.rodar(R, base)
+    _registrar("análises complementares", t0)
     R["tempo_total_s"] = time.time() - t0
     caminho.parent.mkdir(parents=True, exist_ok=True)
     with open(caminho, "wb") as f:
@@ -135,5 +122,15 @@ def carregar(caminho: Path = RESULTADOS) -> dict:
         return pickle.load(f)
 
 
+def rodar_complementares(caminho: Path = RESULTADOS) -> dict:
+    """Refaz só as análises complementares sobre um experimento já gravado (sem repetir a busca)."""
+    R = carregar(caminho)
+    R["complementares"] = complementares.rodar(R, pd.read_parquet(download.DADOS / "base_analitica.parquet"))
+    with open(caminho, "wb") as f:
+        pickle.dump(R, f)
+    return R
+
+
 if __name__ == "__main__":
-    rodar()
+    import sys
+    rodar_complementares() if "--complementares" in sys.argv else rodar()

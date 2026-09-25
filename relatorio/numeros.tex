@@ -144,20 +144,96 @@
 \newcommand{\dXLaprcIC}{0,027--0,059}
 \newcommand{\dXLbprc}{0,024}
 \newcommand{\dXLbprcIC}{0,010--0,038}
-\newcommand{\sensAAuroc}{0,959}
-\newcommand{\sensAAuprc}{0,552}
 \newcommand{\oeBrutoA}{0,99}
 \newcommand{\arvA}{207}
 \newcommand{\profA}{5}
 \newcommand{\lrA}{0,059}
 \newcommand{\spwA}{1}
-\newcommand{\sensBAuroc}{0,891}
-\newcommand{\sensBAuprc}{0,382}
+\newcommand{\sensAEstAuroc}{0,956}
+\newcommand{\sensAEstAuprc}{0,575}
+\newcommand{\sensAEstOE}{1,15}
+\newcommand{\sensAEstDelta}{-0,0001 (-0,0008 a 0,0006)}
+\newcommand{\sensAPiorAuroc}{0,956}
+\newcommand{\sensAPiorAuprc}{0,569}
+\newcommand{\sensAPiorOE}{1,23}
+\newcommand{\sensAPiorDelta}{-0,0005 (-0,0014 a 0,0004)}
+\newcommand{\calABruInt}{-0,020 (-0,088 a 0,048)}
+\newcommand{\calABruInc}{0,999 (0,974 a 1,025)}
+\newcommand{\calACalInt}{0,026 (-0,041 a 0,094)}
+\newcommand{\calACalInc}{0,984 (0,958 a 1,010)}
+\newcommand{\nbAUm}{6,7}
+\newcommand{\sinalAUm}{5,9\%}
+\newcommand{\nbACinco}{5,6}
+\newcommand{\sinalACinco}{1,9\%}
+\newcommand{\nbAVinte}{4,0}
+\newcommand{\sinalAVinte}{1,0\%}
+\newcommand{\nbPositivoA}{sim}
 \newcommand{\oeBrutoB}{1,02}
 \newcommand{\arvB}{409}
 \newcommand{\profB}{4}
 \newcommand{\lrB}{0,041}
 \newcommand{\spwB}{1}
+\newcommand{\sensBEstAuroc}{0,891}
+\newcommand{\sensBEstAuprc}{0,407}
+\newcommand{\sensBEstOE}{1,21}
+\newcommand{\sensBEstDelta}{0,0011 (-0,0001 a 0,0025)}
+\newcommand{\sensBPiorAuroc}{0,890}
+\newcommand{\sensBPiorAuprc}{0,407}
+\newcommand{\sensBPiorOE}{1,27}
+\newcommand{\sensBPiorDelta}{0,0002 (-0,0013 a 0,0014)}
+\newcommand{\calBBruInt}{0,021 (-0,040 a 0,081)}
+\newcommand{\calBBruInc}{1,013 (0,988 a 1,038)}
+\newcommand{\calBCalInt}{0,063 (0,002 a 0,124)}
+\newcommand{\calBCalInc}{0,993 (0,968 a 1,018)}
+\newcommand{\nbBUm}{5,4}
+\newcommand{\sinalBUm}{7,3\%}
+\newcommand{\nbBCinco}{4,2}
+\newcommand{\sinalBCinco}{1,7\%}
+\newcommand{\nbBVinte}{2,8}
+\newcommand{\sinalBVinte}{0,8\%}
+\newcommand{\nbPositivoB}{sim}
+\newcommand{\driftLog}{0,062}
+\newcommand{\posTreinoEstrito}{6.516}
+\newcommand{\nNaoPareados}{1.190}
+\newcommand{\parPesoAus}{0,8}
+\newcommand{\nparPesoAus}{26,7}
+\newcommand{\parSemAus}{4,9}
+\newcommand{\nparSemAus}{31,6}
+\newcommand{\parIdAus}{2,1}
+\newcommand{\nparIdAus}{32,5}
+\newcommand{\parCap}{35,2}
+\newcommand{\nparCap}{19,6}
+\newcommand{\parHosp}{98,2}
+\newcommand{\nparHosp}{90,0}
+\newcommand{\parPesoMed}{1100}
+\newcommand{\nparPesoMed}{1408}
+\newcommand{\linkCap}{94,3\%}
+\newcommand{\linkInt}{88,0\%}
+\newcommand{\linkRacaMin}{89,1\%}
+\newcommand{\linkRacaMax}{90,5\%}
+\newcommand{\linkPesoAus}{21,1\%}
+\newcommand{\pctVerdadeiros}{85\%}
+\newcommand{\vifFilhos}{18}
+\newcommand{\vifGest}{17}
+\newcommand{\vifPartos}{6,5}
+\newcommand{\vifOutrosMax}{3,7}
+\newcommand{\ausCons}{18,9}
+\newcommand{\preCons}{7,5}
+\newcommand{\pctAusCons}{2,4}
+\newcommand{\ausPai}{8,8}
+\newcommand{\prePai}{6,6}
+\newcommand{\pctAusPai}{54,2}
+\newcommand{\ausSem}{13,4}
+\newcommand{\preSem}{7,7}
+\newcommand{\pctAusSem}{1,2}
+\newcommand{\ausApg}{27,2}
+\newcommand{\preApg}{7,6}
+\newcommand{\pctAusApg}{1,1}
+\newcommand{\pctMult}{2,4}
+\newcommand{\pctObMult}{8,9}
+\newcommand{\aurocUnicosA}{0,954}
+\newcommand{\aurocUnicosB}{0,884}
+\newcommand{\repo}{https://github.com/CledsonSilvaAraujo/mortalidade-neonatal-rj}
 \newcommand{\tempoMin}{36}
 \newcommand{\subAAurocMin}{0,950}
 \newcommand{\subAAurocMax}{0,962}
@@ -232,18 +308,6 @@ Idade gestacional & $<$ 32 sem & 23.211 & 6.068 & 261,4 \\
  & 37–41 sem & 1.202.793 & 2.449 & 2,0 \\
  & $\geq$ 42 sem & 21.543 & 41 & 1,9 \\
 \addlinespace
-Apgar 5º min < 7 & não & 1.381.935 & 6.233 & 4,5 \\
- & sim & 15.281 & 4.616 & 302,1 \\
-\addlinespace
-Anomalia congênita & sim & 9.614 & 1.294 & 134,6 \\
- & não & 1.347.578 & 9.231 & 6,9 \\
-\addlinespace
-Raça/cor da mãe & Amarela & 5.037 & 53 & 10,5 \\
- & Branca & 460.545 & 2.928 & 6,4 \\
- & Indígena & 1.136 & 9 & 7,9 \\
- & Parda & 713.871 & 5.843 & 8,2 \\
- & Preta & 191.431 & 1.803 & 9,4 \\
-\addlinespace
 Escolaridade da mãe & Fund. incompleto ou menos & 331.600 & 3.099 & 9,3 \\
  & Médio & 741.665 & 5.810 & 7,8 \\
  & Superior & 299.999 & 1.725 & 5,8 \\
@@ -263,5 +327,33 @@ Hiperparâmetro & A · completo & B · pré-parto \\
 \texttt{gamma} & 0,001 & 0,162 \\
 \texttt{scale\_pos\_weight} & 1,000 & 1,000 \\
 \texttt{n\_arvores} & 207 & 409 \\
+\bottomrule
+\end{tabular}}
+\newcommand{\tabVies}{\begin{tabular}{lrr}
+\toprule
+Característica (na DO) & Pareados & Não pareados \\
+\midrule
+n & 10.849 & 1.190 \\
+Peso ausente (\%) & 0,8 & 26,7 \\
+Semanas ausentes (\%) & 4,9 & 31,6 \\
+Idade da mãe ausente (\%) & 2,1 & 32,5 \\
+Peso mediano (g) & 1.100 & 1.408 \\
+Peso $<$ 1.500 g (\%) & 60,1 & 51,9 \\
+Óbito no 1º dia (\%) & 26,3 & 31,8 \\
+Residente na capital (\%) & 35,2 & 19,6 \\
+Óbito em hospital (\%) & 98,2 & 90,0 \\
+\bottomrule
+\end{tabular}}
+\newcommand{\tabSens}{\begin{tabular}{llcccc}
+\toprule
+Conj. & Rótulos no treino & AUROC & AUPRC & O/E & $\Delta$AUROC (IC 95\%) \\
+\midrule
+A & principal & 0,956 & 0,576 & 1,02 & -- \\
+A & estrito (sem passadas 3--6) & 0,956 & 0,575 & 1,15 & -0,0001 (-0,0008 a 0,0006) \\
+A & pior caso (passadas 3--6 = 0) & 0,956 & 0,569 & 1,23 & -0,0005 (-0,0014 a 0,0004) \\
+\midrule
+B & principal & 0,890 & 0,406 & 1,05 & -- \\
+B & estrito (sem passadas 3--6) & 0,891 & 0,407 & 1,21 & 0,0011 (-0,0001 a 0,0025) \\
+B & pior caso (passadas 3--6 = 0) & 0,890 & 0,407 & 1,27 & 0,0002 (-0,0013 a 0,0014) \\
 \bottomrule
 \end{tabular}}

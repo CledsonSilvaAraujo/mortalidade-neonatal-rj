@@ -79,16 +79,66 @@ for k_, d in R["deltas"].items():
             "XGBoost − LR, B_pre_parto (AUROC)": "dXLb", "XGBoost − LR, B_pre_parto (AUPRC)": "dXLbprc"}[k_]
     macros[nome] = n(d["delta"])
     macros[nome + "IC"] = f"{n(d['ic_inf'])}--{n(d['ic_sup'])}"
+C = R["complementares"]
 for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
-    s = R["sensibilidade"][conj]
-    macros[f"sens{k}Auroc"] = n(s.loc["AUROC", "valor"])
-    macros[f"sens{k}Auprc"] = n(s.loc["AUPRC", "valor"])
     macros[f"oeBruto{k}"] = n(R["calibracao"][conj]["OE_bruto"], 2)
     p = R["params"][(conj, "XGBoost")]
     macros[f"arv{k}"] = str(p["n_arvores"])
     macros[f"prof{k}"] = str(p["max_depth"])
     macros[f"lr{k}"] = n(p["learning_rate"], 3)
     macros[f"spw{k}"] = n(p["scale_pos_weight"], 0)
+    for cen, sg in [("estrito", "Est"), ("pior caso", "Pior")]:
+        v = C["sensibilidade"][(conj, cen)]
+        macros[f"sens{k}{sg}Auroc"] = n(v["metricas"].loc["AUROC", "valor"])
+        macros[f"sens{k}{sg}Auprc"] = n(v["metricas"].loc["AUPRC", "valor"])
+        macros[f"sens{k}{sg}OE"] = n(v["metricas"].loc["O/E", "valor"], 2)
+        d = v["delta_auroc"]
+        macros[f"sens{k}{sg}Delta"] = f"{n(d['delta'], 4)} ({n(d['ic_inf'], 4)} a {n(d['ic_sup'], 4)})"
+    for t, tg in [("bruto", "Bru"), ("calibrado", "Cal")]:
+        c = C["calibracao"][conj][t]
+        macros[f"cal{k}{tg}Int"] = f"{n(c['intercepto'])} ({n(c['intercepto_inf'])} a {n(c['intercepto_sup'])})"
+        macros[f"cal{k}{tg}Inc"] = f"{n(c['inclinacao'])} ({n(c['inclinacao_inf'])} a {n(c['inclinacao_sup'])})"
+    dc = C["decisao"][conj].set_index("limiar")
+    for pt, sg in [(0.01, "Um"), (0.05, "Cinco"), (0.2, "Vinte")]:
+        macros[f"nb{k}{sg}"] = n(1000 * dc.loc[pt, "modelo"], 1)
+        macros[f"sinal{k}{sg}"] = pc(dc.loc[pt, "fração sinalizada"], 1)
+    macros[f"nbPositivo{k}"] = "sim" if (dc["modelo"] > dc[["tratar todos", "tratar nenhum"]].max(axis=1)).all() else "não"
+macros["driftLog"] = n(__import__("math").log(am["teste 2023"]["TMN (‰)"] / am["ajuste 2017–2021"]["TMN (‰)"]))
+macros["posTreinoEstrito"] = mil(C["sensibilidade"][("A_completo", "estrito")]["positivos_treino"])
+
+vl = C["vies_linkage"]
+pf, ps = vl["perfil"], vl["por_subgrupo"].set_index(["Variável", "Categoria"])
+macros["nNaoPareados"] = mil(pf.loc["n", "Não pareados"])
+for lin, sg in [("Peso ausente (%)", "PesoAus"), ("Semanas ausentes (%)", "SemAus"),
+                ("Idade da mãe ausente (%)", "IdAus"), ("Residente na capital (%)", "Cap"),
+                ("Óbito em hospital (%)", "Hosp"), ("Peso mediano (g)", "PesoMed")]:
+    casas = 0 if "g)" in lin else 1
+    macros[f"par{sg}"] = n(pf.loc[lin, "Pareados"], casas)
+    macros[f"npar{sg}"] = n(pf.loc[lin, "Não pareados"], casas)
+macros["linkCap"] = pc(ps.loc[("Residência", "Capital"), "Pareados (%)"] / 100)
+macros["linkInt"] = pc(ps.loc[("Residência", "Interior"), "Pareados (%)"] / 100)
+rr = ps.loc["Raça/cor do recém-nascido (DO)", "Pareados (%)"].drop("Outra/ignorada")
+macros["linkRacaMin"] = pc(rr.min() / 100)
+macros["linkRacaMax"] = pc(rr.max() / 100)
+macros["linkPesoAus"] = pc(ps.loc[("Peso na DO", "ausente"), "Pareados (%)"] / 100)
+macros["pctVerdadeiros"] = pc(rel["n_pareados"] * (1 - f_pond / 100) / rel["n_obitos"], 0)
+
+vif = C["colinearidade"]["VIF"]
+macros["vifFilhos"], macros["vifGest"] = n(vif["Filhos vivos"], 0), n(vif["Gestações anteriores"], 0)
+macros["vifPartos"] = n(vif["Partos vaginais anteriores"], 1)
+macros["vifOutrosMax"] = n(vif.drop(["Filhos vivos", "Gestações anteriores", "Partos vaginais anteriores"]).max(), 1)
+au = C["ausencia"].set_index("Variável")
+for v, sg in [("Consultas de pré-natal", "Cons"), ("Idade do pai", "Pai"), ("Semanas de gestação", "Sem"),
+              ("Apgar 5º min", "Apg")]:
+    macros[f"aus{sg}"] = n(au.loc[v, "TMN ausente (‰)"], 1)
+    macros[f"pre{sg}"] = n(au.loc[v, "TMN preenchido (‰)"], 1)
+    macros[f"pctAus{sg}"] = n(au.loc[v, "Ausente (%)"], 1)
+g = C["gemelares"]
+macros["pctMult"] = n(g["% múltiplos"], 1)
+macros["pctObMult"] = n(g["% dos óbitos em múltiplos"], 1)
+macros["aurocUnicosA"] = n(g["AUROC A_completo (só únicos)"])
+macros["aurocUnicosB"] = n(g["AUROC B_pre_parto (só únicos)"])
+macros["repo"] = "https://github.com/CledsonSilvaAraujo/mortalidade-neonatal-rj"
 macros["tempoMin"] = f"{R['tempo_total_s'] / 60:.0f}"
 
 sub = pd.read_csv(FIG / "subgrupos.csv").set_index(["Conjunto", "Subgrupo"])
@@ -143,7 +193,8 @@ desc.columns = ["Variável", "Categoria", "NV", "Óbitos", "TMN"]
 td = ["\\begin{tabular}{llrrr}", "\\toprule", "Variável & Categoria & NV & Óbitos & TMN (‰) \\\\", "\\midrule"]
 anterior = None
 for _, r in desc.iterrows():
-    if r["Categoria"] in ("ausente", "Ignorada", "ignorado"):
+    if r["Categoria"] in ("ausente", "Ignorada", "ignorado") or r["Variável"] not in (
+            "Peso ao nascer", "Idade gestacional", "Escolaridade da mãe"):
         continue
     v = r["Variável"] if r["Variável"] != anterior else ""
     if anterior is not None and v:
@@ -162,10 +213,35 @@ for k_ in ["learning_rate", "max_depth", "min_child_weight", "subsample", "colsa
     th.append(f"\\texttt{{{k_.replace('_', chr(92) + '_')}}} & {fmt(pa_[k_])} & {fmt(pb_[k_])} \\\\")
 th += ["\\bottomrule", "\\end{tabular}"]
 
+tv = ["\\begin{tabular}{lrr}", "\\toprule", "Característica (na DO) & Pareados & Não pareados \\\\", "\\midrule"]
+for lin in ["n", "Peso ausente (%)", "Semanas ausentes (%)", "Idade da mãe ausente (%)", "Peso mediano (g)",
+            "Peso < 1.500 g (%)", "Óbito no 1º dia (%)", "Residente na capital (%)", "Óbito em hospital (%)"]:
+    fmt = mil if lin in ("n", "Peso mediano (g)") else (lambda v: n(v, 1))
+    tv.append(f"{lin.replace('%', chr(92) + '%').replace('<', '$<$')} & {fmt(pf.loc[lin, 'Pareados'])} & "
+              f"{fmt(pf.loc[lin, 'Não pareados'])} \\\\")
+tv += ["\\bottomrule", "\\end{tabular}"]
+
+ts = ["\\begin{tabular}{llcccc}", "\\toprule",
+      "Conj. & Rótulos no treino & AUROC & AUPRC & O/E & $\\Delta$AUROC (IC 95\\%) \\\\", "\\midrule"]
+for conj, c in [("A_completo", "A"), ("B_pre_parto", "B")]:
+    t = M[(conj, "XGBoost")]
+    ts.append(f"{c} & principal & {n(t.loc['AUROC', 'valor'])} & {n(t.loc['AUPRC', 'valor'])} & "
+              f"{n(t.loc['O/E', 'valor'], 2)} & -- \\\\")
+    for cen, rot in [("estrito", "estrito (sem passadas 3--6)"), ("pior caso", "pior caso (passadas 3--6 = 0)")]:
+        v = C["sensibilidade"][(conj, cen)]
+        m_, d = v["metricas"]["valor"], v["delta_auroc"]
+        ts.append(f"{c} & {rot} & {n(m_['AUROC'])} & {n(m_['AUPRC'])} & {n(m_['O/E'], 2)} & "
+                  f"{n(d['delta'], 4)} ({n(d['ic_inf'], 4)} a {n(d['ic_sup'], 4)}) \\\\")
+    if c == "A":
+        ts.append("\\midrule")
+ts += ["\\bottomrule", "\\end{tabular}"]
+
 conteudo = "\n".join(["% Gerado por relatorio/gerar_numeros.py — não editar à mão.", *linhas,
                       "\\newcommand{\\tabLinkage}{" + "\n".join(tl) + "}",
                       "\\newcommand{\\tabMetricas}{" + "\n".join(tm) + "}",
                       "\\newcommand{\\tabDescritiva}{" + "\n".join(td) + "}",
-                      "\\newcommand{\\tabHiper}{" + "\n".join(th) + "}"])
+                      "\\newcommand{\\tabHiper}{" + "\n".join(th) + "}",
+                      "\\newcommand{\\tabVies}{" + "\n".join(tv) + "}",
+                      "\\newcommand{\\tabSens}{" + "\n".join(ts) + "}"])
 SAIDA.write_text(conteudo + "\n", encoding="utf-8")
 print(f"{len(macros)} macros -> {SAIDA}")
