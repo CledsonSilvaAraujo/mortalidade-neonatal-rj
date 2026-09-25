@@ -42,7 +42,10 @@ def rodar(caminho: Path = RESULTADOS) -> dict:
     R = {"fluxo": fluxo, "linkage": rel_linkage, "amostras": {}, "estudos": {}, "params": {},
          "metricas": {}, "predicoes": {}, "limiares": {}, "curvas": {}, "calibracao": {},
          "subgrupos": {}, "shap": {}, "deltas": {}}
-    for nome, df in [("ajuste 2017–2021", ajuste), ("validação 2022", valid), ("teste 2023", teste)]:
+    a0 = download.ANOS_NASCIMENTO[0]
+    rotulos = [f"ajuste {a0}–{preprocess.ANO_VALIDACAO - 1}", f"validação {preprocess.ANO_VALIDACAO}",
+               f"teste {preprocess.ANO_TESTE}"]
+    for nome, df in zip(rotulos, [ajuste, valid, teste]):
         R["amostras"][nome] = {"n": len(df), "óbitos": int(df["obito_neonatal"].sum()),
                                "TMN (‰)": 1000 * df["obito_neonatal"].mean()}
     y_te = teste["obito_neonatal"].to_numpy()

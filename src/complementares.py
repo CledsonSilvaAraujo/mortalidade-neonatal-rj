@@ -103,7 +103,7 @@ def teste_rotulos_estritos(teste: pd.DataFrame, R: dict) -> dict:
 
 # ------------------------------------------------------------------ sensibilidade
 def sensibilidade_linkage(ajuste, valid, teste, R) -> dict:
-    """Refaz o XGBoost com rótulos alternativos no treino e avalia no MESMO teste de 2023.
+    """Refaz o XGBoost com rótulos alternativos no treino e avalia no MESMO ano de teste.
 
     - "estrito": os nascimentos pareados nas passadas 3–6 saem do ajuste e da validação;
     - "pior caso": esses nascimentos ficam, mas rotulados como sobreviventes (0).

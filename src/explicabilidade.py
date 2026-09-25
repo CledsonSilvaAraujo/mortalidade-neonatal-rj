@@ -123,10 +123,10 @@ def atributos_sensiveis(R, conj: str) -> dict:
 
 
 def explicacoes_locais(R, modelos: dict, teste: pd.DataFrame, conj: str = "A_completo") -> dict:
-    """Explicação individual de três casos típicos do teste de 2023.
+    """Explicação individual de três casos típicos do ano de teste.
 
     - óbito de maior risco previsto (verdadeiro positivo);
-    - óbito não sinalizado no limiar escolhido em 2022 (falso negativo mediano);
+    - óbito não sinalizado no limiar escolhido na validação (falso negativo mediano);
     - sobrevivente de maior risco previsto (falso positivo).
     """
     y = teste["obito_neonatal"].to_numpy()

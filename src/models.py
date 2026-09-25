@@ -1,8 +1,8 @@
 """Pipelines, busca bayesiana de hiperparâmetros (Optuna) e recalibração.
 
-Esquema temporal, espelhando o artigo de referência: ajuste em 2017–2021,
-escolha de hiperparâmetros, early stopping e recalibração em 2022, e teste
-final intocado em 2023.
+Esquema temporal, espelhando o artigo de referência: ajuste nos anos iniciais,
+escolha de hiperparâmetros, early stopping e recalibração no penúltimo ano
+(preprocess.ANO_VALIDACAO) e teste final intocado no último (preprocess.ANO_TESTE).
 """
 import numpy as np
 import optuna
@@ -82,7 +82,7 @@ def ajustar_xgb(X_tr, y_tr, X_va, y_va, params: dict, spw: float,
 
 
 def buscar_xgb(X_tr, y_tr, X_va, y_va, n_tentativas: int = N_TENTATIVAS["xgb"]) -> optuna.Study:
-    """Otimização bayesiana (TPE) da AUPRC na validação de 2022."""
+    """Otimização bayesiana (TPE) da AUPRC no ano de validação."""
     def objetivo(trial):
         m = ajustar_xgb(X_tr, y_tr, X_va, y_va, espaco_xgb(trial), _peso_classe(trial, y_tr))
         trial.set_user_attr("n_arvores", m.best_iteration + 1)
@@ -136,7 +136,7 @@ def params_do_estudo(estudo: optuna.Study, y_tr) -> tuple[dict, float]:
 
 
 class Recalibrado:
-    """Modelo + regressão isotônica ajustada na validação (2022).
+    """Modelo + regressão isotônica ajustada no ano de validação.
 
     O peso de classe distorce as probabilidades; a isotônica é monótona, então
     preserva a ordenação (AUROC/AUPRC quase iguais) e corrige a calibração.

@@ -7,8 +7,8 @@ import pandas as pd
 from src import download, linkage
 
 MUNICIPIO_RIO = "330455"
-ANO_TESTE = 2023      # validação temporal: último ano de nascimentos
-ANO_VALIDACAO = 2022  # holdout temporal para ajustar hiperparâmetros (dentro do treino)
+ANO_TESTE = 2024      # validação temporal: último ano de nascimentos
+ANO_VALIDACAO = 2023  # holdout temporal para ajustar hiperparâmetros (dentro do treino)
 
 # Numéricas e o código de "ignorado" de cada uma (valores legítimos variam por campo).
 NUMERICAS = {
@@ -74,7 +74,7 @@ def limpar(nv: pd.DataFrame) -> pd.DataFrame:
 
 def excluir(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Exclusões do artigo de referência; devolve também o fluxo (n por etapa)."""
-    fluxo = [("Nascidos vivos residentes no RJ, 2017–2023", len(df))]
+    fluxo = [(f"Nascidos vivos residentes no RJ, {download.ANOS_NASCIMENTO[0]}–{download.ANOS_NASCIMENTO[-1]}", len(df))]
     df = df[df["ano"].notna()]
     fluxo.append(("Com data de nascimento válida", len(df)))
     ig = df["SEMAGESTAC"]

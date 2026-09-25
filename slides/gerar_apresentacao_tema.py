@@ -15,11 +15,13 @@ from lxml import etree
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-from src import experimento  # noqa: E402
+from src import download, experimento, preprocess  # noqa: E402
 
 SAIDA = RAIZ / "slides" / "apresentacao_tema.odp"
 AUTOR = "Cledson da Silva Araújo"
 
+A0, AF = download.ANOS_NASCIMENTO[0], download.ANOS_NASCIMENTO[-1]
+AV, AT = preprocess.ANO_VALIDACAO, preprocess.ANO_TESTE
 R = experimento.carregar()
 rel = R["linkage"]
 pa = rel["por_ano"]
@@ -63,7 +65,7 @@ SLIDES = {
     "Google Shape;74;p16": [  # Dados
         ("q", "Qual dataset será utilizado?"),
         ("a", "SINASC (nascidos vivos) + SIM (óbitos), microdados do DATASUS por residência no estado do RJ, "
-              "nascimentos de 2017 a 2023: ftp.datasus.gov.br/dissemin/publicos"),
+              f"nascimentos de {A0} a {AF}: ftp.datasus.gov.br/dissemin/publicos"),
         ("a", f"≈{br(n_nv / 1e6)} milhão de nascidos vivos e ≈{br(rel['n_obitos'] / 1e3, 0)} mil óbitos neonatais "
               f"({br(100 * prev_sim)}%). Acesso público, sem cadastro, dados anonimizados."),
         ("a", "Artigo de referência: Batista et al. (2021), BMC Pediatrics, município de São Paulo, XGBoost "
@@ -91,8 +93,8 @@ SLIDES = {
         ("a", "Baseline: regressão logística. Modelos: XGBoost (o do artigo de referência) e LightGBM."),
         ("a", "Métrica principal: AUPRC. Também AUROC, F1, % dos óbitos entre os 5% de maior risco (comparável "
               "ao artigo) e calibração (observado/esperado)."),
-        ("a", "Separação temporal: treino 2017–2021, validação 2022 (hiperparâmetros, calibração e limiar) e "
-              "teste 2023, usado uma única vez."),
+        ("a", f"Separação temporal: treino {A0}–{AV - 1}, validação {AV} (hiperparâmetros, calibração e limiar) e "
+              f"teste {AT}, usado uma única vez."),
         ("a", "Comparações: modelo completo × pré-parto; subgrupos com IC 95% por bootstrap."),
     ],
 }

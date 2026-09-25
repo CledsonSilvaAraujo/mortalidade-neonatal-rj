@@ -38,6 +38,7 @@ def test_conjunto_pre_parto_nao_tem_variaveis_do_parto():
 
 
 def test_dividir_e_temporal():
-    df = pd.DataFrame({"ano": [2017, 2022, 2023], "obito_neonatal": [0, 1, 0]})
+    t = preprocess.ANO_TESTE
+    df = pd.DataFrame({"ano": [2017, t - 1, t], "obito_neonatal": [0, 1, 0]})
     treino, teste = preprocess.dividir(df)
-    assert treino["ano"].max() < teste["ano"].min() == 2023
+    assert treino["ano"].max() < teste["ano"].min() == t

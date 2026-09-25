@@ -10,7 +10,7 @@ import pandas as pd
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-from src import experimento, linkage, preprocess  # noqa: E402
+from src import download, experimento, linkage, preprocess  # noqa: E402
 
 R = experimento.carregar()
 FIG = RAIZ / "figuras"
@@ -54,7 +54,11 @@ f_pond = ((fp["falsos_ESCMAE"] + fp["falsos_QTDFILMORT"]) / 2 * fp["n_pares"]).s
 macros["falsosPonderado"] = f"{f_pond:.0f}\\%"
 
 am = R["amostras"]
-for chave, nome in [("ajuste 2017–2021", "Ajuste"), ("validação 2022", "Valid"), ("teste 2023", "Teste")]:
+chaves_am = list(am)  # ajuste, validação, teste (na ordem gravada pelo experimento)
+macros.update({"anoIni": str(download.ANOS_NASCIMENTO[0]), "anoFim": str(download.ANOS_NASCIMENTO[-1]),
+               "anoObFim": str(download.ANOS_OBITO[-1]), "anoValid": str(preprocess.ANO_VALIDACAO),
+               "anoAjFim": str(preprocess.ANO_VALIDACAO - 1), "anoTeste": str(preprocess.ANO_TESTE)})
+for chave, nome in zip(chaves_am, ["Ajuste", "Valid", "Teste"]):
     macros[f"n{nome}"] = mil(am[chave]["n"])
     macros[f"ob{nome}"] = mil(am[chave]["óbitos"])
     macros[f"tmn{nome}"] = n(am[chave]["TMN (‰)"], 2)
@@ -103,7 +107,7 @@ for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
         macros[f"nb{k}{sg}"] = n(1000 * dc.loc[pt, "modelo"], 1)
         macros[f"sinal{k}{sg}"] = pc(dc.loc[pt, "fração sinalizada"], 1)
     macros[f"nbPositivo{k}"] = "sim" if (dc["modelo"] > dc[["tratar todos", "tratar nenhum"]].max(axis=1)).all() else "não"
-macros["driftLog"] = n(__import__("math").log(am["teste 2023"]["TMN (‰)"] / am["ajuste 2017–2021"]["TMN (‰)"]))
+macros["driftLog"] = n(__import__("math").log(am[chaves_am[2]]["TMN (‰)"] / am[chaves_am[0]]["TMN (‰)"]))
 macros["posTreinoEstrito"] = mil(C["sensibilidade"][("A_completo", "estrito")]["positivos_treino"])
 
 vl = C["vies_linkage"]
@@ -126,7 +130,7 @@ macros["pctVerdadeiros"] = pc(rel["n_pareados"] * (1 - f_pond / 100) / rel["n_ob
 vif = C["colinearidade"]["VIF"]
 macros["vifFilhos"], macros["vifGest"] = n(vif["Filhos vivos"], 0), n(vif["Gestações anteriores"], 0)
 macros["vifPartos"] = n(vif["Partos vaginais anteriores"], 1)
-macros["vifOutrosMax"] = n(vif.drop(["Filhos vivos", "Gestações anteriores", "Partos vaginais anteriores"]).max(), 1)
+macros["vifOutrosMax"] = n(vif.drop(["Filhos vivos", "Gestações anteriores"]).max(), 1)
 au = C["ausencia"].set_index("Variável")
 for v, sg in [("Consultas de pré-natal", "Cons"), ("Idade do pai", "Pai"), ("Semanas de gestação", "Sem"),
               ("Apgar 5º min", "Apg")]:
@@ -164,7 +168,8 @@ co = C["completude_oe"]
 for reg, sg in [("Capital", "Cap"), ("Interior", "Int")]:
     macros[f"compTreino{sg}"] = pc(co.loc[reg, "completude treino (%)"] / 100)
     macros[f"compTeste{sg}"] = pc(co.loc[reg, "completude teste (%)"] / 100)
-    macros[f"oeLink{sg}"] = n(co.loc[reg, "O/E esperado só pelo linkage"], 2)
+    macros[f"oeLink{sg}"] = n(co.loc[reg, "O/E esperado só pelo linkage"], 3)
+    macros[f"compDif{sg}"] = n(co.loc[reg, "completude teste (%)"] - co.loc[reg, "completude treino (%)"], 1)
     for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
         macros[f"oeReg{k}{sg}Bru"] = n(C["oe_regiao"][(conj, reg, "bruto")], 2)
         macros[f"oeReg{k}{sg}Cal"] = n(C["oe_regiao"][(conj, reg, "calibrado")], 2)
@@ -177,12 +182,27 @@ for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
     for pt, sg in [(0.02, "Dois"), (0.1, "Dez")]:
         macros[f"nb{k}{sg}"] = n(1000 * dc.loc[pt, "modelo"], 1)
 tc = ["\\begin{tabular}{lccccc}", "\\toprule",
-      "Região & Pareamento treino & Pareamento 2023 & O/E esperado & O/E A & O/E B \\\\",
-      "& (2017--2022) & & só pelo linkage & (bruto) & (bruto) \\\\", "\\midrule"]
+      f"Região & Pareamento treino & Pareamento {macros['anoTeste']} & O/E esperado & O/E A & O/E B \\\\",
+      f"& ({macros['anoIni']}--{macros['anoValid']}) & & só pelo linkage & (recalibr.) & (recalibr.) \\\\", "\\midrule"]
 for reg, sg in [("Capital", "Cap"), ("Interior", "Int")]:
     tc.append(f"{reg} & {macros['compTreino' + sg]} & {macros['compTeste' + sg]} & {macros['oeLink' + sg]} & "
-              f"{macros['oeRegA' + sg + 'Bru']} & {macros['oeRegB' + sg + 'Bru']} \\\\")
+              f"{macros['oeRegA' + sg + 'Cal']} & {macros['oeRegB' + sg + 'Cal']} \\\\")
 tc += ["\\bottomrule", "\\end{tabular}"]
+
+# --- estabilidade dos subgrupos: teste do ano anterior (experimento gravado antes)
+ant = RAIZ / "data" / "resultados_teste2023.pkl"
+if ant.exists():
+    import pickle
+    Rp = pickle.load(open(ant, "rb"))
+    for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
+        for g, sg in [("raca_mae", "Branca"), ("capital", "Int")]:
+            t = Rp["subgrupos"][conj][g]
+            chave = "Branca" if sg == "Branca" else "Interior"
+            col = g
+            linha = t[t[col] == chave]
+            if len(linha):
+                macros[f"ant{k}{sg}OE"] = n(float(linha["O/E"].iloc[0]), 2)
+    macros["anoTesteAnt"] = str(preprocess.ANO_TESTE - 1)
 
 # --- descritiva em texto
 dsc = pd.read_csv(FIG / "descritiva_tmn.csv", index_col=[0, 1])["TMN (‰)"]
@@ -215,6 +235,27 @@ macros["xaiFnProb"] = pc(cfn["prob_calibrada"], 1)
 cfp = lo["casos"]["Falso positivo"]
 macros["xaiFpProb"] = pc(cfp["prob_calibrada"], 0)
 
+
+def valor_caso(caso, var):
+    t = lo["casos"][caso]["top"].set_index("variavel")["valor"]
+    return t.get(var)
+
+
+for caso, sg in [("Verdadeiro positivo", "Vp"), ("Falso negativo", "Fn"), ("Falso positivo", "Fp")]:
+    todos = lo["casos"][caso]
+    for var, vs in [("Peso ao nascer", "Peso"), ("Apgar 1º min", "ApgarUm"), ("Apgar 5º min", "ApgarCinco"),
+                    ("Semanas de gestação", "Sem"), ("Anomalia congênita", "Anom")]:
+        v = valor_caso(caso, var)
+        if v is None:
+            continue
+        if var == "Anomalia congênita":
+            macros[f"xai{sg}{vs}"] = {"1": "com anomalia", "2": "sem anomalia", "9": "anomalia ignorada"}.get(str(v), str(v))
+        elif var == "Peso ao nascer":
+            macros[f"xai{sg}{vs}"] = mil(float(v)) + "~g"
+        else:
+            macros[f"xai{sg}{vs}"] = f"{float(v):.0f}"
+    macros[f"xai{sg}Prob"] = pc(todos["prob_calibrada"], 1)
+
 # Versões em inglês (ponto decimal, vírgula de milhar) para o abstract.
 def en(v, casas=3):
     return f"{v:.{casas}f}"
@@ -229,6 +270,27 @@ macros["AXgbAurocICEn"] = f"{en(tA.loc['AUROC', 'valor'])} (95\\% CI {en(tA.loc[
 macros["AXgbAuprcEn"] = en(tA.loc["AUPRC", "valor"])
 macros["AXgbTopEn"] = f"{100 * tA.loc['Óbitos no top 5%', 'valor']:.0f}\\%"
 macros["BXgbAurocEn"] = en(M[("B_pre_parto", "XGBoost")].loc["AUROC", "valor"])
+
+# --- extras para o README (gerado por relatorio/gerar_readme.py a partir do mesmo dicionário)
+nomes_num = ["Um", "Dois", "Tres", "Quatro", "Cinco", "Seis"]
+for i, nm in zip(fp.index, nomes_num):
+    r = fp.loc[i]
+    macros[f"par{nm}"] = mil(r["n_pares"])
+    a_, b_ = sorted([int(round(r["falsos_ESCMAE"])), int(round(r["falsos_QTDFILMORT"]))])
+    macros[f"falsos{nm}"] = f"{a_}\\%" if a_ == b_ else f"{a_}--{b_}\\%"
+macros["prevPareada"] = pc(rel["n_pareados"] / pa["nascidos_vivos"].sum(), 2)
+for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
+    p_ = R["params"][(conj, "XGBoost")]
+    for h, sg, c in [("learning_rate", "Lr", 3), ("min_child_weight", "Mcw", 2), ("subsample", "Sub", 2),
+                     ("colsample_bytree", "Col", 2), ("reg_lambda", "Lam", 3), ("reg_alpha", "Alp", 3),
+                     ("gamma", "Gam", 3), ("scale_pos_weight", "Spw", 2)]:
+        macros[f"hp{k}{sg}"] = n(p_[h], c)
+    macros[f"hp{k}Prof"] = str(p_["max_depth"])
+    macros[f"hp{k}Arv"] = str(p_["n_arvores"])
+    macros[f"xaiSpear{k}"] = n(X_["estabilidade"][conj]["spearman_xgb_lgbm"], 2)
+macros["pesoEscolhido"] = {"1,00": "nenhum"}.get(macros["hpASpw"], "√(n₀/n₁)")
+import json
+(RAIZ / "relatorio" / "macros.json").write_text(json.dumps(macros, ensure_ascii=False, indent=0), encoding="utf-8")
 
 linhas = [f"\\newcommand{{\\{k}}}{{{v}}}" for k, v in macros.items()]
 

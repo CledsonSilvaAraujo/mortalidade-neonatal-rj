@@ -56,7 +56,7 @@ Os autores fizeram o linkage probabilístico entre o SINASC e o SIM do municípi
 
 \begin{itemize}
   \item \textbf{Fontes:} microdados públicos do SINASC (nascidos vivos) e do SIM (óbitos), por residência no RJ, obtidos no FTP do DATASUS sem cadastro \cite{datasus}. O download é automatizado.
-  \item \textbf{Período:} 1.397.216 nascidos vivos em 2017--2023 e óbitos de 2017--2024. O ano de 2024 entra para captar óbitos de nascidos em dezembro de 2023.
+  \item \textbf{Período:} 1.560.938 nascidos vivos em 2017--2024 e óbitos de 2017--2025. O ano de 2025 (SIM ainda preliminar) entra só para captar óbitos de nascidos em dezembro de 2024.
   \item \textbf{Desfecho:} óbito não fetal com 0--27 dias de vida.
 \end{itemize}
 
@@ -69,7 +69,7 @@ Os autores fizeram o linkage probabilístico entre o SINASC e o SIM do municípi
 
 Os resultados do linkage já foram verificados:
 \begin{itemize}
-  \item 10.849 dos 12.039 óbitos neonatais do período foram pareados (\textbf{90,1\%}, entre 88,5\% e 91,6\% conforme o ano).
+  \item 12.155 dos 13.471 óbitos neonatais do período foram pareados (\textbf{90,2\%}, entre 88,5\% e 91,6\% conforme o ano).
   \item Esse percentual é comparável aos 90,8\% obtidos com dados identificados nas capitais brasileiras \cite{maia2017}.
   \item A fração de falsos pares, estimada por um modelo de mistura sobre campos fora das chaves, é de 6--8\% nas duas chaves principais.
 \end{itemize}
@@ -86,9 +86,9 @@ Essa estimativa usa a escolaridade da mãe e as perdas fetais anteriores, tomand
   \item \textbf{Modelos:} regressão logística (linha de base interpretável), XGBoost (modelo do artigo) \cite{chen2016} e LightGBM \cite{ke2017}.
   \item \textbf{Validação temporal}, como no artigo:
     \begin{itemize}
-      \item ajuste em 2017--2021;
-      \item escolha de hiperparâmetros por otimização bayesiana (Optuna/TPE) \cite{akiba2019}, com \textit{early stopping} e recalibração isotônica em 2022;
-      \item teste único, intocado, em 2023.
+      \item ajuste em 2017--2022;
+      \item escolha de hiperparâmetros por otimização bayesiana (Optuna/TPE) \cite{akiba2019}, com \textit{early stopping} e recalibração isotônica em 2023;
+      \item teste único, intocado, em 2024 (o ano mais recente com nascimentos completos).
     \end{itemize}
   \item \textbf{Desbalanceamento} (prevalência de $\approx$0,8\%): o peso de classe é tratado como hiperparâmetro. Não se usa sobreamostragem, para preservar a calibração.
 \end{itemize}

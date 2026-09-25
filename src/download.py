@@ -13,11 +13,14 @@ DADOS = Path(__file__).resolve().parent.parent / "data"
 RAW = DADOS / "raw"
 
 UF = "RJ"
-ANOS_NASCIMENTO = range(2017, 2024)   # nascidos vivos 2017–2023
-ANOS_OBITO = range(2017, 2025)        # óbitos até 2024: quem nasce em dezembro morre no ano seguinte
+ANOS_NASCIMENTO = range(2017, 2025)   # nascidos vivos 2017–2024
+ANOS_OBITO = range(2017, 2026)        # óbitos até 2025: quem nasce em dezembro morre no ano seguinte
 
 FTP = "ftp://ftp.datasus.gov.br/dissemin/publicos"
 PASTAS = {"DN": "SINASC/1996_/Dados/DNRES", "DO": "SIM/CID10/DORES"}
+# Anos ainda não consolidados pelo DATASUS, lidos da pasta de dados preliminares.
+# O SIM 2025 só entra para captar óbitos de nascidos no fim de 2024 (0–27 dias).
+PRELIMINARES = {("DO", 2025): "SIM/PRELIM/DORES"}
 
 
 def nome_arquivo(sistema: str, ano: int, uf: str = UF) -> str:
@@ -25,7 +28,8 @@ def nome_arquivo(sistema: str, ano: int, uf: str = UF) -> str:
 
 
 def url_arquivo(sistema: str, ano: int, uf: str = UF) -> str:
-    return f"{FTP}/{PASTAS[sistema]}/{nome_arquivo(sistema, ano, uf)}"
+    pasta = PRELIMINARES.get((sistema, ano), PASTAS[sistema])
+    return f"{FTP}/{pasta}/{nome_arquivo(sistema, ano, uf)}"
 
 
 def baixar_arquivo(sistema: str, ano: int, destino: Path,
@@ -85,13 +89,14 @@ def manifesto(pasta: Path = RAW, saida: Path = DADOS.parent / "manifesto_dados.c
     """Versão exata dos dados usados: URL, tamanho, SHA-256 e data do download de cada DBC.
 
     O DATASUS revisa os arquivos; com o hash, qualquer diferença numa nova execução é detectável.
-    As pastas usadas (DNRES, DORES) são as de dados definitivos; os preliminares ficam em PRELIM.
+    Os arquivos listados em PRELIMINARES vêm da pasta de dados preliminares; os demais são definitivos.
     """
     linhas = []
     for sistema, anos in [("DN", ANOS_NASCIMENTO), ("DO", ANOS_OBITO)]:
         for ano in anos:
             arq = Path(pasta) / nome_arquivo(sistema, ano)
-            linhas.append({"arquivo": arq.name, "url": url_arquivo(sistema, ano), "situacao": "definitivo",
+            situacao = "preliminar" if (sistema, ano) in PRELIMINARES else "definitivo"
+            linhas.append({"arquivo": arq.name, "url": url_arquivo(sistema, ano), "situacao": situacao,
                            "bytes": arq.stat().st_size,
                            "sha256": hashlib.sha256(arq.read_bytes()).hexdigest(),
                            "baixado_em": datetime.fromtimestamp(arq.stat().st_mtime).strftime("%Y-%m-%d %H:%M")})

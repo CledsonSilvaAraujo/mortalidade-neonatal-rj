@@ -9,7 +9,7 @@
 # ---
 
 # %% [markdown]
-# # Predição de mortalidade neonatal no RJ com dados abertos (SINASC × SIM, 2017–2023)
+# # Predição de mortalidade neonatal no RJ com dados abertos (SINASC × SIM, 2017–2024)
 #
 # **Disciplina:** Introdução ao Aprendizado de Máquina para a Saúde (UFF, 2026.2).
 #
@@ -74,9 +74,11 @@ print("pandas", pd.__version__, "| scikit-learn", sklearn.__version__, "| xgboos
 
 # %% [markdown]
 # ## 2. Carregamento do dataset
-# São 7 arquivos do SINASC (`DNRJ2017–2023.dbc`) e 8 do SIM (`DORJ2017–2024.dbc`), baixados do FTP público do
-# DATASUS: <ftp://ftp.datasus.gov.br/dissemin/publicos/>. O SIM vai até 2024 para incluir os óbitos
-# de quem nasceu no fim de 2023. O download é idempotente: arquivos já baixados são reaproveitados.
+# São 8 arquivos do SINASC (`DNRJ2017–2024.dbc`) e 9 do SIM (`DORJ2017–2025.dbc`), baixados do FTP público do
+# DATASUS: <ftp://ftp.datasus.gov.br/dissemin/publicos/>.
+# - O SIM vai até 2025 para incluir os óbitos de quem nasceu no fim de 2024.
+# - O SIM 2025 ainda é **preliminar** (pasta `SIM/PRELIM`) e só contribui com esses óbitos.
+# - O download é idempotente: arquivos já baixados são reaproveitados.
 
 # %%
 arquivos = download.baixar_tudo(RAIZ / "data" / "raw")
@@ -178,9 +180,9 @@ desc
 # ### 3.4 Amostras de treino, validação e teste (validação temporal)
 # | Uso | Anos | Papel |
 # |---|---|---|
-# | Ajuste | 2017–2021 | treino dos modelos |
-# | Validação | 2022 | busca de hiperparâmetros (Optuna), *early stopping*, recalibração isotônica e escolha do limiar |
-# | Teste | 2023 | avaliação final, usada uma única vez |
+# | Ajuste | 2017–2022 | treino dos modelos |
+# | Validação | 2023 | busca de hiperparâmetros (Optuna), *early stopping*, recalibração isotônica e escolha do limiar |
+# | Teste | 2024 | avaliação final, usada uma única vez |
 #
 # O esquema espelha o do artigo, que treinou em 2012–2016 e testou em 2017. A pergunta avaliada é se um
 # modelo treinado no passado funciona no ano seguinte.
@@ -200,7 +202,7 @@ pd.DataFrame(R["amostras"]).T
 #
 # **Peso de classe (`scale_pos_weight`):** é tratado como hiperparâmetro, com três opções: nenhum,
 # $\sqrt{n_0/n_1}$ ou $n_0/n_1$. Como qualquer peso distorce as probabilidades, uma **regressão isotônica**
-# ajustada em 2022 recalibra as saídas. Ela é monótona, então não altera a ordenação.
+# ajustada em 2023 recalibra as saídas. Ela é monótona, então não altera a ordenação.
 #
 # **Complexidade:** o XGBoost com histogramas custa $O(K \cdot n \cdot d)$ por ajuste ($K$ árvores, $n$ registros,
 # $d$ variáveis), e a predição custa $O(K \cdot \text{profundidade})$ por registro. A regressão logística custa
@@ -208,7 +210,7 @@ pd.DataFrame(R["amostras"]).T
 #
 # ### 4.1 Hiperparâmetros
 # A busca bayesiana (TPE, Optuna) teve 30 tentativas para o XGBoost e 20 para o LightGBM. O objetivo
-# foi a AUPRC na validação de 2022, com *early stopping* de 100 árvores.
+# foi a AUPRC na validação de 2023, com *early stopping* de 50 árvores.
 
 # %%
 params = pd.DataFrame({f"{NOME_CONJ[c]} · {m}": pd.Series(v) for (c, m), v in R["params"].items()})
@@ -223,13 +225,13 @@ for ax, conj in zip(axes, preprocess.CONJUNTOS):
         ax.plot(t["number"], t["value"].cummax(), color=cor, label=f"{nome} (melhor até aqui)")
         ax.scatter(t["number"], t["value"], s=12, color=cor, alpha=0.35, linewidths=0)
     ax.set_title(NOME_CONJ[conj], loc="left", fontsize=10); ax.set_xlabel("Tentativa do Optuna")
-axes[0].set_ylabel("AUPRC na validação (2022)"); axes[0].legend(loc="lower right")
+axes[0].set_ylabel(f"AUPRC na validação ({preprocess.ANO_VALIDACAO})"); axes[0].legend(loc="lower right")
 fig.savefig(FIG / "optuna.png")
 
 # %% [markdown]
 # ## 5. Execução
 # ### 5.1 Curvas por iteração (XGBoost final)
-# Log-loss e AUPRC a cada árvore, no ajuste (2017–2021) e na validação (2022). A linha vertical marca a
+# Log-loss e AUPRC a cada árvore, no ajuste (2017–2022) e na validação (2023). A linha vertical marca a
 # árvore escolhida pelo *early stopping*. Log-loss e AUPRC ficam em painéis separados porque têm escalas diferentes.
 
 # %%
@@ -239,8 +241,8 @@ for j, conj in enumerate(preprocess.CONJUNTOS):
     melhor = R["params"][(conj, "XGBoost")]["n_arvores"] - 1
     for i, (met, rot) in enumerate([("logloss", "Log-loss"), ("aucpr", "AUPRC")]):
         ax = axes[i, j]
-        ax.plot(c.index, c[f"treino_{met}"], color=COR["LR"], label="ajuste 2017–2021")
-        ax.plot(c.index, c[f"valid_{met}"], color=COR["XGBoost"], label="validação 2022")
+        ax.plot(c.index, c[f"treino_{met}"], color=COR["LR"], label=f"ajuste {download.ANOS_NASCIMENTO[0]}–{preprocess.ANO_VALIDACAO - 1}")
+        ax.plot(c.index, c[f"valid_{met}"], color=COR["XGBoost"], label=f"validação {preprocess.ANO_VALIDACAO}")
         ax.axvline(melhor, color=TINTA2, lw=1, ls="--")
         ax.set_ylabel(rot)
         if i == 0:
@@ -251,8 +253,8 @@ axes[0, 0].legend()
 fig.savefig(FIG / "curvas_iteracao.png")
 
 # %% [markdown]
-# ### 5.2 Desempenho no teste (2023)
-# O limiar de classificação foi escolhido em 2022 para maximizar o F1 e só depois aplicado a 2023. Os IC 95%
+# ### 5.2 Desempenho no teste (2024)
+# O limiar de classificação foi escolhido em 2023 para maximizar o F1 e só depois aplicado a 2024. Os IC 95%
 # vêm de 500 reamostras bootstrap estratificadas.
 #
 # A regressão isotônica é monótona, mas é uma função em degraus e cria empates. Por isso as métricas de
@@ -280,7 +282,7 @@ tab.T
 artigo = {"AUROC": 0.971, "AUPRC": 0.586, "F1": 0.548, "Precisão": 0.729, "Sensibilidade": 0.440,
           "Especificidade": 0.99, "VPN": 0.997, "Óbitos no top 5%": 0.90}
 nosso = R["metricas"][("A_completo", "XGBoost")]
-comp = pd.DataFrame({"Batista et al. (SP, 2017)": artigo, "Este trabalho (RJ, 2023)": nosso["valor"]}).loc[list(artigo)]
+comp = pd.DataFrame({"Batista et al. (SP, 2017)": artigo, f"Este trabalho (RJ, {preprocess.ANO_TESTE})": nosso["valor"]}).loc[list(artigo)]
 comp.to_csv(FIG / "comparacao_artigo.csv")
 comp.round(3)
 
@@ -355,7 +357,7 @@ fig.savefig(FIG / "calibracao.png")
 
 # %% [markdown]
 # ### 5.4 Interpretação (SHAP)
-# Os valores SHAP foram calculados com `TreeExplainer` numa amostra de 20.000 nascimentos de 2023. O
+# Os valores SHAP (TreeSHAP exato, seção 5.10) foram calculados numa amostra de 20.000 nascimentos de 2024. O
 # gráfico mostra a importância média |SHAP| das 12 principais variáveis. No artigo, as cinco primeiras
 # foram Apgar 5, peso, Apgar 1, anomalia congênita e idade gestacional.
 
@@ -383,7 +385,7 @@ plt.show()
 
 # %% [markdown]
 # ### 5.5 Subgrupos: discriminação e calibração
-# Resultados do XGBoost recalibrado no teste de 2023, com IC 95% de 500 reamostras bootstrap dentro de cada
+# Resultados do XGBoost recalibrado no teste de 2024, com IC 95% de 500 reamostras bootstrap dentro de cada
 # subgrupo. Subgrupos com menos de 20 óbitos (mães amarelas e indígenas) foram omitidos. Se os IC se
 # sobrepõem, a diferença entre os subgrupos não é distinguível do acaso.
 
@@ -436,7 +438,7 @@ fig.savefig(FIG / "subgrupos.png")
 # - **Intercepto** (*calibration-in-the-large*): ideal 0; um valor positivo indica que o modelo subestima o risco.
 # - **Inclinação:** ideal 1; um valor menor que 1 indica previsões extremas demais.
 #
-# A TMN subiu de 7,70‰ (2017–2022) para 8,20‰ no teste de 2023. Essa mudança de prevalência (*drift*) empurra
+# A TMN de cada amostra aparece abaixo. Se ela muda entre o treino e o teste (*drift*), isso desloca
 # o O/E para cima de 1 mesmo num modelo bem calibrado no passado.
 
 # %%
@@ -511,7 +513,7 @@ vl["por_subgrupo"].round(1)
 # - **Estrito:** os nascimentos pareados nas passadas 3–6 saem.
 # - **Pior caso:** esses nascimentos ficam, mas rotulados como sobreviventes.
 #
-# A avaliação é no **mesmo teste de 2023 completo**, com os rótulos principais. Assim, a diferença de AUROC em
+# A avaliação é no **mesmo teste de 2024 completo**, com os rótulos principais. Assim, a diferença de AUROC em
 # relação ao modelo principal pode ser testada por bootstrap pareado.
 
 # %%
@@ -531,7 +533,7 @@ sens.round(4)
 
 # %% [markdown]
 # ### 5.10 Explicabilidade (XAI)
-# O SHAP (`TreeExplainer`) decompõe o log-odds previsto de cada nascimento em contribuições aditivas das
+# O SHAP (TreeSHAP exato) decompõe o log-odds previsto de cada nascimento em contribuições aditivas das
 # variáveis: $\text{logit}\,\hat p = \phi_0 + \sum_j \phi_j$. A análise tem quatro partes:
 # 1. **Global:** importância média |SHAP| (seção 5.4).
 # 2. **Dependência:** SHAP em função do valor da variável. O efeito aprendido faz sentido clinicamente?
@@ -558,7 +560,7 @@ fig.tight_layout()
 fig.savefig(FIG / "xai_dependencia.png")
 
 # %% [markdown]
-# **Explicações locais.** São três casos do teste de 2023, no modelo completo: o óbito de maior risco previsto,
+# **Explicações locais.** São três casos do teste de 2024, no modelo completo: o óbito de maior risco previsto,
 # um óbito que o modelo não sinalizou (falso negativo mediano) e o sobrevivente de maior risco previsto (falso
 # positivo). O ponto de partida é o risco médio ($\phi_0$), e cada barra soma ou subtrai log-odds.
 
