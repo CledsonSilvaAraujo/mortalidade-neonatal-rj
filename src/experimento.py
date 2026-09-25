@@ -13,7 +13,7 @@ import pandas as pd
 import shap
 from sklearn.metrics import average_precision_score, roc_auc_score
 
-from src import complementares, download, evaluate, models, preprocess
+from src import complementares, download, evaluate, explicabilidade, models, preprocess
 
 RESULTADOS = download.DADOS / "resultados.pkl"
 C_LR = [0.01, 0.1, 1.0]
@@ -93,8 +93,8 @@ def rodar(caminho: Path = RESULTADOS) -> dict:
                                 for g in ["raca_mae", "escol_mae", "capital"]}
 
         amostra = X_te.sample(N_SHAP, random_state=models.SEMENTE)
-        valores = shap.TreeExplainer(finais["XGBoost"]).shap_values(amostra)
-        R["shap"][conj] = {"valores": valores, "X": amostra}
+        valores, base_shap = explicabilidade.shap_nativo(finais["XGBoost"], amostra)
+        R["shap"][conj] = {"valores": valores, "base": base_shap, "X": amostra}
         _registrar(f"{conj} SHAP", t0)
 
     for m in ["AUROC", "AUPRC"]:
@@ -131,6 +131,20 @@ def rodar_complementares(caminho: Path = RESULTADOS) -> dict:
     return R
 
 
+def atualizar_complementares(caminho: Path = RESULTADOS) -> dict:
+    """Refaz só as partes baratas das complementares e a explicabilidade (sem reajustar a sensibilidade)."""
+    R = carregar(caminho)
+    complementares.atualizar(R, pd.read_parquet(download.DADOS / "base_analitica.parquet"))
+    with open(caminho, "wb") as f:
+        pickle.dump(R, f)
+    return R
+
+
 if __name__ == "__main__":
     import sys
-    rodar_complementares() if "--complementares" in sys.argv else rodar()
+    if "--complementares" in sys.argv:
+        rodar_complementares()
+    elif "--atualizar" in sys.argv:
+        atualizar_complementares()
+    else:
+        rodar()

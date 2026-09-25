@@ -159,6 +159,77 @@ for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
     rot = [preprocess.ROTULOS[v] for v in imp.index[:5]]
     macros[f"shapTop{k}"] = ", ".join(r if r.startswith("Apgar") else r[0].lower() + r[1:] for r in rot)
 
+# --- completude do linkage por região, teste estrito, O/E por região
+co = C["completude_oe"]
+for reg, sg in [("Capital", "Cap"), ("Interior", "Int")]:
+    macros[f"compTreino{sg}"] = pc(co.loc[reg, "completude treino (%)"] / 100)
+    macros[f"compTeste{sg}"] = pc(co.loc[reg, "completude teste (%)"] / 100)
+    macros[f"oeLink{sg}"] = n(co.loc[reg, "O/E esperado só pelo linkage"], 2)
+    for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
+        macros[f"oeReg{k}{sg}Bru"] = n(C["oe_regiao"][(conj, reg, "bruto")], 2)
+        macros[f"oeReg{k}{sg}Cal"] = n(C["oe_regiao"][(conj, reg, "calibrado")], 2)
+te_ = C["teste_estrito"]
+for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
+    macros[f"testeEstr{k}Auroc"] = n(te_[(conj, "sem os pares tolerantes")]["AUROC"])
+    macros[f"testeZero{k}Auroc"] = n(te_[(conj, "pares tolerantes = 0")]["AUROC"])
+    macros[f"oeBruto{k}"] = n(R["calibracao"][conj]["OE_bruto"], 2)
+    dc = C["decisao"][conj].set_index("limiar")
+    for pt, sg in [(0.02, "Dois"), (0.1, "Dez")]:
+        macros[f"nb{k}{sg}"] = n(1000 * dc.loc[pt, "modelo"], 1)
+tc = ["\\begin{tabular}{lccccc}", "\\toprule",
+      "Região & Pareamento treino & Pareamento 2023 & O/E esperado & O/E A & O/E B \\\\",
+      "& (2017--2022) & & só pelo linkage & (bruto) & (bruto) \\\\", "\\midrule"]
+for reg, sg in [("Capital", "Cap"), ("Interior", "Int")]:
+    tc.append(f"{reg} & {macros['compTreino' + sg]} & {macros['compTeste' + sg]} & {macros['oeLink' + sg]} & "
+              f"{macros['oeRegA' + sg + 'Bru']} & {macros['oeRegB' + sg + 'Bru']} \\\\")
+tc += ["\\bottomrule", "\\end{tabular}"]
+
+# --- descritiva em texto
+dsc = pd.read_csv(FIG / "descritiva_tmn.csv", index_col=[0, 1])["TMN (‰)"]
+macros["tmnPesoMuitoBaixo"] = n(dsc.loc[("Peso ao nascer", "< 1.500 g")], 0)
+macros["tmnPesoNormal"] = n(dsc.loc[("Peso ao nascer", "2.500–3.999 g")], 1)
+macros["tmnIgMuitoPrematuro"] = n(dsc.loc[("Idade gestacional", "< 32 sem")], 0)
+macros["tmnIgTermo"] = n(dsc.loc[("Idade gestacional", "37–41 sem")], 1)
+macros["tmnApgarBaixo"] = n(dsc.loc[("Apgar 5º min < 7", "sim")], 0)
+
+# --- XAI
+X_ = C["xai"]
+for conj, k in [("A_completo", "A"), ("B_pre_parto", "B")]:
+    e = X_["estabilidade"][conj]
+    macros[f"xaiSpear{k}"] = n(e["spearman_xgb_lgbm"], 2)
+    macros[f"xaiTop{k}"] = str(e["top5_comum_xgb_lgbm"])
+    macros[f"xaiMetades{k}"] = n(e["spearman_metades"], 3)
+    sa = X_["sensiveis"][conj]["fracao_importancia"]
+    macros[f"xaiSens{k}"] = pc(float(sa["RACACORMAE"] + sa["ESCMAE2010"]), 1)
+    macros[f"xaiAdit{k}"] = f"{X_['aditividade'][conj]['nativo']:.0e}".replace("e-0", "\\times 10^{-").replace("e-", "\\times 10^{-") + "}"
+rb = X_["sensiveis"]["B_pre_parto"]["RACACORMAE"]["mean"]
+macros["xaiBrancaB"] = n(rb["1"], 2)
+macros["xaiPretaB"] = n(rb["2"], 2)
+eb = X_["sensiveis"]["B_pre_parto"]["ESCMAE2010"]["mean"]
+macros["xaiEscBaixaB"] = n(eb["1"], 2)
+macros["xaiEscSupB"] = n(eb["5"], 2)
+lo = X_["locais"]
+macros["xaiBase"] = pc(lo["base_prob"], 2)
+cfn = lo["casos"]["Falso negativo"]
+macros["xaiFnProb"] = pc(cfn["prob_calibrada"], 1)
+cfp = lo["casos"]["Falso positivo"]
+macros["xaiFpProb"] = pc(cfp["prob_calibrada"], 0)
+
+# Versões em inglês (ponto decimal, vírgula de milhar) para o abstract.
+def en(v, casas=3):
+    return f"{v:.{casas}f}"
+
+
+tA = M[("A_completo", "XGBoost")]
+macros["nNVEn"] = f"{int(pa['nascidos_vivos'].sum()):,}"
+macros["nObitosSIMEn"] = f"{rel['n_obitos']:,}"
+macros["pctPareadoEn"] = f"{100 * rel['n_pareados'] / rel['n_obitos']:.1f}\\%"
+macros["pctVerdadeirosEn"] = f"{100 * rel['n_pareados'] * (1 - f_pond / 100) / rel['n_obitos']:.0f}\\%"
+macros["AXgbAurocICEn"] = f"{en(tA.loc['AUROC', 'valor'])} (95\\% CI {en(tA.loc['AUROC', 'ic_inf'])}--{en(tA.loc['AUROC', 'ic_sup'])})"
+macros["AXgbAuprcEn"] = en(tA.loc["AUPRC", "valor"])
+macros["AXgbTopEn"] = f"{100 * tA.loc['Óbitos no top 5%', 'valor']:.0f}\\%"
+macros["BXgbAurocEn"] = en(M[("B_pre_parto", "XGBoost")].loc["AUROC", "valor"])
+
 linhas = [f"\\newcommand{{\\{k}}}{{{v}}}" for k, v in macros.items()]
 
 # Tabela: linkage por passada
@@ -242,6 +313,7 @@ conteudo = "\n".join(["% Gerado por relatorio/gerar_numeros.py — não editar �
                       "\\newcommand{\\tabDescritiva}{" + "\n".join(td) + "}",
                       "\\newcommand{\\tabHiper}{" + "\n".join(th) + "}",
                       "\\newcommand{\\tabVies}{" + "\n".join(tv) + "}",
-                      "\\newcommand{\\tabSens}{" + "\n".join(ts) + "}"])
+                      "\\newcommand{\\tabSens}{" + "\n".join(ts) + "}",
+                      "\\newcommand{\\tabCompletude}{" + "\n".join(tc) + "}"])
 SAIDA.write_text(conteudo + "\n", encoding="utf-8")
 print(f"{len(macros)} macros -> {SAIDA}")

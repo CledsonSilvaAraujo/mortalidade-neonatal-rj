@@ -38,3 +38,13 @@ def test_taxa_pareamento_por_subgrupo():
     g = {"Residência": pd.Series(["Capital", "Capital", "Interior", "Interior"], index=obitos.index)}
     t = complementares.taxa_pareamento_por(obitos, pareado, g).set_index("Categoria")
     assert t.loc["Capital", "Pareados (%)"] == 50 and t.loc["Interior", "Pareados (%)"] == 100
+
+
+def test_completude_explica_oe_razao_teste_sobre_treino():
+    idx = pd.MultiIndex.from_tuples([("Interior", 2021), ("Interior", 2022), ("Interior", 2023),
+                                     ("Capital", 2021), ("Capital", 2022), ("Capital", 2023)], names=["região", "ano"])
+    t = pd.DataFrame({"óbitos": [100, 100, 100, 50, 50, 50], "pareados_pct": [80, 90, 94.5, 95, 95, 95]}, index=idx)
+    r = complementares.completude_explica_oe(t, ano_teste=2023)
+    assert np.isclose(r.loc["Interior", "completude treino (%)"], 85)
+    assert np.isclose(r.loc["Interior", "O/E esperado só pelo linkage"], 94.5 / 85)
+    assert np.isclose(r.loc["Capital", "O/E esperado só pelo linkage"], 1.0)

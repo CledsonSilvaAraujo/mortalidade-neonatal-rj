@@ -61,7 +61,44 @@ def vies_linkage(nv: pd.DataFrame, do: pd.DataFrame) -> dict:
         "Raça/cor do recém-nascido (DO)": raca,
         "Peso na DO": pd.Series(np.where(k["PESO"].isna(), "ausente", "preenchido"), index=obitos.index),
     }
-    return {"perfil": perfil, "por_subgrupo": taxa_pareamento_por(obitos, pareado, grupos)}
+    ano = linkage._data(obitos["DTNASC"]).dt.year
+    por_ano_regiao = (pd.DataFrame({"ano": ano, "região": grupos["Residência"], "pareado": pareado})
+                      .groupby(["região", "ano"])["pareado"].agg(óbitos="size", pareados_pct="mean"))
+    por_ano_regiao["pareados_pct"] *= 100
+    return {"perfil": perfil, "por_subgrupo": taxa_pareamento_por(obitos, pareado, grupos),
+            "por_ano_regiao": por_ano_regiao}
+
+
+def completude_explica_oe(por_ano_regiao: pd.DataFrame, ano_teste: int = preprocess.ANO_TESTE) -> pd.DataFrame:
+    """Se a completude do linkage no teste difere da do treino, o O/E se desloca na mesma proporção.
+
+    Razão esperada de O/E por linkage = completude no teste / completude média no ajuste+validação.
+    """
+    linhas = []
+    for reg, t in por_ano_regiao.groupby(level="região"):
+        t = t.droplevel("região")
+        treino = (t.loc[t.index < ano_teste, "pareados_pct"] * t.loc[t.index < ano_teste, "óbitos"]).sum() \
+            / t.loc[t.index < ano_teste, "óbitos"].sum()
+        linhas.append({"região": reg, "completude treino (%)": treino,
+                       "completude teste (%)": t.loc[ano_teste, "pareados_pct"],
+                       "O/E esperado só pelo linkage": t.loc[ano_teste, "pareados_pct"] / treino})
+    return pd.DataFrame(linhas).set_index("região")
+
+
+def teste_rotulos_estritos(teste: pd.DataFrame, R: dict) -> dict:
+    """Modelo principal avaliado no teste com rótulos estritos (sem reajuste).
+
+    Mostra quanto a AUROC reportada depende dos pares tolerantes do próprio teste.
+    """
+    tol = (teste["passada_linkage"].notna() & (teste["passada_linkage"] > linkage.PASSADAS_ESTRITAS)).to_numpy()
+    y = teste["obito_neonatal"].to_numpy()
+    out = {}
+    for conj in preprocess.CONJUNTOS:
+        pr = R["predicoes"][(conj, "XGBoost")]
+        lim = R["limiares"][(conj, "XGBoost")]
+        out[(conj, "sem os pares tolerantes")] = evaluate.metricas(y[~tol], pr["calibrado"][~tol], lim, pr["bruto"][~tol])
+        out[(conj, "pares tolerantes = 0")] = evaluate.metricas(np.where(tol, 0, y), pr["calibrado"], lim, pr["bruto"])
+    return out
 
 
 # ------------------------------------------------------------------ sensibilidade
@@ -167,6 +204,27 @@ def gemelares(teste: pd.DataFrame, R: dict) -> dict:
     return out
 
 
+def oe_por_regiao(teste: pd.DataFrame, R: dict) -> dict:
+    """O/E do XGBoost por capital/interior no teste (bruto e recalibrado)."""
+    cap = (teste["capital"] == 1).to_numpy()
+    y = teste["obito_neonatal"].to_numpy()
+    return {(conj, reg, t): evaluate.razao_obs_esp(y[m], R["predicoes"][(conj, "XGBoost")][t][m])
+            for conj in preprocess.CONJUNTOS for reg, m in [("Capital", cap), ("Interior", ~cap)]
+            for t in ("bruto", "calibrado")}
+
+
+def atualizar(R: dict, base: pd.DataFrame) -> dict:
+    """Refaz as partes baratas (sem os reajustes da sensibilidade) e a explicabilidade."""
+    from src import explicabilidade
+    treino, teste = preprocess.dividir(base)
+    C = R["complementares"]
+    vl = vies_linkage(download.carregar("DN", download.ANOS_NASCIMENTO), download.carregar("DO", download.ANOS_OBITO))
+    C.update({"vies_linkage": vl, "completude_oe": completude_explica_oe(vl["por_ano_regiao"]),
+              "teste_estrito": teste_rotulos_estritos(teste, R), "oe_regiao": oe_por_regiao(teste, R)})
+    C["xai"] = explicabilidade.rodar(R, base)
+    return C
+
+
 # ------------------------------------------------------------------ orquestração
 def rodar(R: dict, base: pd.DataFrame, nv: pd.DataFrame | None = None, do: pd.DataFrame | None = None) -> dict:
     treino, teste = preprocess.dividir(base)
@@ -177,15 +235,21 @@ def rodar(R: dict, base: pd.DataFrame, nv: pd.DataFrame | None = None, do: pd.Da
         nv = download.carregar("DN", download.ANOS_NASCIMENTO)
     if do is None:
         do = download.carregar("DO", download.ANOS_OBITO)
-    C = {"vies_linkage": vies_linkage(nv, do),
+    vl = vies_linkage(nv, do)
+    C = {"vies_linkage": vl,
+         "completude_oe": completude_explica_oe(vl["por_ano_regiao"]),
+         "teste_estrito": teste_rotulos_estritos(teste, R),
          "sensibilidade": sensibilidade_linkage(ajuste, valid, teste, R),
          "calibracao": {}, "decisao": {},
          "colinearidade": colinearidade(ajuste),
          "ausencia": ausencia_informativa(base),
          "gemelares": gemelares(teste, R),
-         "tmn_por_amostra": {k: v["TMN (‰)"] for k, v in R["amostras"].items()}}
+         "tmn_por_amostra": {k: v["TMN (‰)"] for k, v in R["amostras"].items()},
+         "oe_regiao": oe_por_regiao(teste, R)}
     for conj in preprocess.CONJUNTOS:
         pr = R["predicoes"][(conj, "XGBoost")]
         C["calibracao"][conj] = {t: intercepto_inclinacao(y_te, pr[t]) for t in ("bruto", "calibrado")}
         C["decisao"][conj] = beneficio_liquido(y_te, pr["calibrado"])
+    from src import explicabilidade
+    C["xai"] = explicabilidade.rodar(R, base)
     return C

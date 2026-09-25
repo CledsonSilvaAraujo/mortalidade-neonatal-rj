@@ -265,6 +265,58 @@
 \newcommand{\subBIntOE}{1,08 (1,02--1,15)}
 \newcommand{\shapTopA}{Apgar 5º min, peso ao nascer, Apgar 1º min, semanas de gestação, anomalia congênita}
 \newcommand{\shapTopB}{semanas de gestação, consultas de pré-natal, escolaridade da mãe, apresentação, raça/cor da mãe}
+\newcommand{\compTreinoCap}{94,0\%}
+\newcommand{\compTesteCap}{95,8\%}
+\newcommand{\oeLinkCap}{1,02}
+\newcommand{\oeRegACapBru}{0,93}
+\newcommand{\oeRegACapCal}{0,95}
+\newcommand{\oeRegBCapBru}{0,96}
+\newcommand{\oeRegBCapCal}{0,98}
+\newcommand{\compTreinoInt}{87,8\%}
+\newcommand{\compTesteInt}{89,6\%}
+\newcommand{\oeLinkInt}{1,02}
+\newcommand{\oeRegAIntBru}{1,02}
+\newcommand{\oeRegAIntCal}{1,05}
+\newcommand{\oeRegBIntBru}{1,05}
+\newcommand{\oeRegBIntCal}{1,08}
+\newcommand{\testeEstrAAuroc}{0,959}
+\newcommand{\testeZeroAAuroc}{0,959}
+\newcommand{\nbADois}{6,2}
+\newcommand{\nbADez}{4,9}
+\newcommand{\testeEstrBAuroc}{0,890}
+\newcommand{\testeZeroBAuroc}{0,890}
+\newcommand{\nbBDois}{5,0}
+\newcommand{\nbBDez}{3,6}
+\newcommand{\tmnPesoMuitoBaixo}{285}
+\newcommand{\tmnPesoNormal}{2,0}
+\newcommand{\tmnIgMuitoPrematuro}{261}
+\newcommand{\tmnIgTermo}{2,0}
+\newcommand{\tmnApgarBaixo}{302}
+\newcommand{\xaiSpearA}{0,96}
+\newcommand{\xaiTopA}{4}
+\newcommand{\xaiMetadesA}{0,999}
+\newcommand{\xaiSensA}{3,3\%}
+\newcommand{\xaiAditA}{7\times 10^{-6}}
+\newcommand{\xaiSpearB}{0,89}
+\newcommand{\xaiTopB}{4}
+\newcommand{\xaiMetadesB}{1,000}
+\newcommand{\xaiSensB}{8,1\%}
+\newcommand{\xaiAditB}{9\times 10^{-6}}
+\newcommand{\xaiBrancaB}{-0,13}
+\newcommand{\xaiPretaB}{0,08}
+\newcommand{\xaiEscBaixaB}{0,34}
+\newcommand{\xaiEscSupB}{-0,26}
+\newcommand{\xaiBase}{0,53\%}
+\newcommand{\xaiFnProb}{3,6\%}
+\newcommand{\xaiFpProb}{96\%}
+\newcommand{\nNVEn}{1,397,216}
+\newcommand{\nObitosSIMEn}{12,039}
+\newcommand{\pctPareadoEn}{90.1\%}
+\newcommand{\pctVerdadeirosEn}{85\%}
+\newcommand{\AXgbAurocICEn}{0.956 (95\% CI 0.948--0.962)}
+\newcommand{\AXgbAuprcEn}{0.576}
+\newcommand{\AXgbTopEn}{87\%}
+\newcommand{\BXgbAurocEn}{0.890}
 \newcommand{\tabLinkage}{\begin{tabular}{clrrr}
 \toprule
 & Chave & Pares & \multicolumn{2}{c}{Falsos pares estimados} \\
@@ -355,5 +407,14 @@ A & pior caso (passadas 3--6 = 0) & 0,956 & 0,569 & 1,23 & -0,0005 (-0,0014 a 0,
 B & principal & 0,890 & 0,406 & 1,05 & -- \\
 B & estrito (sem passadas 3--6) & 0,891 & 0,407 & 1,21 & 0,0011 (-0,0001 a 0,0025) \\
 B & pior caso (passadas 3--6 = 0) & 0,890 & 0,407 & 1,27 & 0,0002 (-0,0013 a 0,0014) \\
+\bottomrule
+\end{tabular}}
+\newcommand{\tabCompletude}{\begin{tabular}{lccccc}
+\toprule
+Região & Pareamento treino & Pareamento 2023 & O/E esperado & O/E A & O/E B \\
+& (2017--2022) & & só pelo linkage & (bruto) & (bruto) \\
+\midrule
+Capital & 94,0\% & 95,8\% & 1,02 & 0,93 & 0,96 \\
+Interior & 87,8\% & 89,6\% & 1,02 & 1,02 & 1,05 \\
 \bottomrule
 \end{tabular}}

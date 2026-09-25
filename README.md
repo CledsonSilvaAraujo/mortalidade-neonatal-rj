@@ -7,7 +7,7 @@ Aluno: Cledson da Silva Araújo.
 - **Documentação (Parte 1):** este arquivo.
 - **Demonstração (Parte 2):** [`notebook/mortalidade_neonatal_rj.ipynb`](notebook/mortalidade_neonatal_rj.ipynb).
 - **Relatório (formato SBC, 12 páginas):** [`relatorio/main.pdf`](relatorio/main.pdf).
-- **Slides (14, com notas do apresentador):** [`slides/apresentacao.pptx`](slides/apresentacao.pptx).
+- **Slides (16, com notas do apresentador, ~14 min de fala):** [`slides/apresentacao.pptx`](slides/apresentacao.pptx).
 - **Apresentação do tema (modelo .odp da disciplina):** [`slides/apresentacao_tema.odp`](slides/apresentacao_tema.odp).
 - **Repositório:** <https://github.com/CledsonSilvaAraujo/mortalidade-neonatal-rj>.
 
@@ -72,7 +72,15 @@ Duas chaves mais tolerantes foram testadas e **descartadas** por excesso de fals
 - **10.849 de 12.039 óbitos pareados (90,1%)**, entre 88,5% e 91,6% conforme o ano.
 - Descontados os falsos pares estimados (média ponderada de 6%), cerca de **85% dos óbitos têm um par verdadeiro**.
 - **Premissa da estimativa:** a passada 1 (chave completa, 8 campos) não tem falsos pares. Se tiver, as demais estimativas estão subestimadas.
-- Pareamento por região: **94,3% na capital** e **88,0% no interior**. Por raça/cor do recém-nascido (DO), vai de 89,1% a 90,5%.
+- Pareamento por região: **94,3% na capital** e **88,0% no interior**. Por raça/cor do **recém-nascido** (a única que a DO informa), vai de 89,1% a 90,5%. A raça/cor da **mãe**, usada nos subgrupos, não está na DO.
+- **Completude por ano e região:** é estável entre os anos. Em 2023, ficou ≈2 pontos acima do treino **nas duas regiões**:
+
+  | Região | Pareamento 2017–2022 | Pareamento 2023 | O/E esperado só pelo linkage | O/E A / B (bruto) |
+  |---|---|---|---|---|
+  | Capital | 94,0% | 95,8% | 1,02 | 0,93 / 0,96 |
+  | Interior | 87,8% | 89,6% | 1,02 | 1,02 / 1,05 |
+
+  O linkage desloca o O/E igualmente nas duas regiões, então **não explica** a diferença entre capital e interior.
 - A comparação com Maia et al. (2017) exige cautela: eles tiveram 90,8% nas capitais (93,1% nas capitais do Sudeste), mas com óbitos **infantis** e dados **identificados**.
 - A taxa de mortalidade neonatal na base pareada é de 7,76‰, contra 8,62‰ no SIM.
 
@@ -89,7 +97,8 @@ Duas chaves mais tolerantes foram testadas e **descartadas** por excesso de fals
 | Óbito em hospital | 98,2% | 90,0% |
 
 - Os não pareados são óbitos com campos das chaves ausentes na DO: só 21% dos óbitos sem peso foram pareados.
-- Eles são menos extremos (peso maior) e mais do interior, e viram falsos "sobreviventes".
+- O perfil deles é **diferente**, e não necessariamente menos grave: mais campos ausentes, mais do interior e mais óbitos no 1º dia e fora do hospital (óbito precoce fora do hospital ou em trânsito).
+- O peso mediano maior dos não pareados é uma comparação com seleção: ele só é calculado entre quem tem peso preenchido, e 27% deles não têm.
 - Isso **não** tornou a ausência na DN um sinal de sobrevivência: na base pareada, a TMN é **maior** quando o campo falta (seção 3.5).
 
 ### 2.4 Versão dos dados e aspectos éticos
@@ -253,14 +262,18 @@ A tabela completa, com especificidade, VPN, Brier e todos os IC, está em [`figu
 - No modelo **A**, as cinco principais variáveis são Apgar 5, peso, Apgar 1, semanas de gestação e anomalia congênita. São as mesmas cinco do artigo.
 - No modelo **B**, são semanas de gestação, consultas de pré-natal, escolaridade da mãe, apresentação e raça/cor da mãe.
 
-**Calibração:**
-- O O/E é de 1,02 (A) e 1,05 (B) após a isotônica, contra 0,99 e 1,02 sem ela.
-- **Intercepto / inclinação:** 0,026 (−0,041 a 0,094) / 0,984 (0,958 a 1,010) no A; 0,063 (0,002 a 0,124) / 0,993 (0,968 a 1,018) no B.
-- O intercepto positivo de B coincide com o *drift*: a TMN subiu de 7,70‰ para 8,20‰ em 2023, e ln(8,20/7,70) = 0,063.
+**Calibração** (curva em 20 faixas em `figuras/calibracao_decisao.png`):
+- A curva acompanha a diagonal.
+- **Intercepto / inclinação (recalibrado):** 0,026 (−0,041 a 0,094) / 0,984 (0,958 a 1,010) no A; 0,063 (0,002 a 0,124) / 0,993 (0,968 a 1,018) no B.
+- **A isotônica piorou um pouco a calibração no teste:**
+  - O/E de 0,99 → 1,02 (A) e 1,02 → 1,05 (B);
+  - intercepto de B de 0,021 (bruto) → 0,063.
+- Explicação **plausível**, não provada: *drift*. A isotônica foi ajustada em 2022, e a TMN subiu para 8,20‰ em 2023; parte disso (≈2%) vem da completude maior do linkage. O intercepto de A não acompanha a mesma magnitude.
 
 **Utilidade clínica (curva de decisão):**
-- O benefício líquido supera "tratar todos" e "tratar nenhum" em todos os limiares de 1% a 20%.
-- Com p_t = 5% (19 falsos alarmes aceitos por óbito identificado), o modelo A sinaliza 1,9% dos nascimentos, com 5,6 por mil de benefício líquido; o B tem 4,2 por mil. O máximo possível é 8,2 por mil.
+- Com prevalência de 0,8%, "tratar todos" é negativo acima de p_t ≈ 0,8%. Superá-la é trivial, então a comparação relevante é com **não intervir**.
+- **Faixa clínica de 2% a 10%:** para uma transferência *in utero* ou a priorização de UTI neonatal, é plausível aceitar de 9 a 49 falsos alarmes por óbito identificado.
+- Nessa faixa, o benefício líquido é de 6,2 a 4,9 por mil nascidos vivos (A) e de 5,0 a 3,6 por mil (B), sempre acima de zero. O máximo possível é a TMN, 8,2 por mil.
 
 **H3, como na proposta:**
 - No modelo B, o O/E dos filhos de mães com fundamental incompleto é 1,06 (0,97–1,16); no A, 1,02 (0,94–1,11).
@@ -280,30 +293,61 @@ A tabela completa, com especificidade, VPN, Brier e todos os IC, está em [`figu
 | B | estrito | 0,891 | 0,407 | 1,21 | 0,0011 (−0,0001 a 0,0025) |
 | B | pior caso | 0,890 | 0,407 | 1,27 | 0,0002 (−0,0013 a 0,0014) |
 
-- A **discriminação é robusta** aos erros do linkage.
+- O modelo é **robusto a ruído de rótulo no treino**.
 - A **calibração absoluta não é**: com menos positivos no treino, o modelo aprende uma prevalência menor.
+- **O teste também tem rótulos imperfeitos.** O modelo principal, avaliado sem os pares tolerantes do teste, tem AUROC de 0,959 (A) e 0,890 (B); com esses pares marcados como sobreviventes, 0,959 e 0,890. Eles **não inflam** a AUROC reportada.
+- Os ~10% de óbitos sem nenhum par não podem ser avaliados: é um limite da validação.
 
-### 4.2 Figuras (geradas pelo notebook em `figuras/`)
+### 4.2 Explicabilidade (XAI)
+
+O projeto usa o SHAP exato (TreeSHAP), com a decomposição logit p̂ = φ₀ + Σφⱼ, em 20.000 nascimentos de 2023 (`src/explicabilidade.py`).
+
+1. **Verificação de aditividade:** φ₀ + Σφ reproduz o log-odds do modelo com erro < 1e-5.
+   - A verificação expôs uma armadilha: com *early stopping*, a API do XGBoost usa por padrão **todas** as árvores, inclusive as 50 posteriores à melhor iteração.
+   - É preciso passar `iteration_range`; do contrário, as explicações se referem a outro modelo. Há um teste de regressão para isso.
+2. **Global:** top 5 igual ao do artigo no modelo A (Apgar 5, peso, Apgar 1, semanas, anomalia).
+3. **Dependência** (`figuras/xai_dependencia.png`): os efeitos são clinicamente plausíveis.
+   - O risco cai de forma monotônica com Apgar, peso e idade gestacional.
+   - O risco sobe com a idade da mãe acima de ~38 anos.
+   - As **consultas de pré-natal têm forma de U**: acima de ~14 consultas, o risco sobe. É confusão por indicação, então o SHAP mostra associação, não causa.
+4. **Local** (`figuras/xai_local.png`): três casos.
+   - Um óbito de 374 g e Apgar 0, bem previsto.
+   - Um óbito não sinalizado (3,6%), com Apgar 5/7 e 2.232 g: risco moderado que a DN não distingue.
+   - Um sobrevivente com risco de 96% (Apgar 1/1, anomalia).
+
+   Os erros vêm de falta de informação na DN, e não de efeitos espúrios.
+5. **Estabilidade:**
+   - Spearman do ranking XGBoost × LightGBM de 0,96 (A) e 0,89 (B), com 4 das 5 principais em comum;
+   - entre metades da amostra, 0,999.
+6. **Atributos sensíveis:**
+   - Raça/cor e escolaridade da mãe pesam 3,3% da importância no A e 8,1% no B.
+   - No B, mãe branca tem SHAP médio de −0,13 e mãe preta, +0,08; a escolaridade vai de +0,34 (fundamental incompleto) a −0,26 (superior).
+   - O modelo pré-parto usa o gradiente socioeconômico no lugar do estado do recém-nascido.
+
+### 4.3 Figuras (geradas pelo notebook em `figuras/`)
 
 | | |
 |---|---|
 | ![](figuras/roc_pr.png) | ![](figuras/captura_top.png) |
 | ![](figuras/shap_importancia.png) | ![](figuras/subgrupos.png) |
+| ![](figuras/xai_dependencia.png) | ![](figuras/xai_local.png) |
+| ![](figuras/calibracao_decisao.png) | |
 
 ## 5. Conclusão
 
 - **H1 confirmada.** Com dados totalmente abertos e linkage sem identificadores, o XGBoost teve AUROC de **0,956** e concentrou **87%** dos óbitos nos 5% de maior risco, contra 0,971 e mais de 90% no artigo.
   - As principais variáveis foram as mesmas.
-  - O resultado é **robusto ao linkage**: descartar ou zerar os pares duvidosos não muda a AUROC.
-  - A diferença residual é compatível com os ~15% de óbitos sem par verdadeiro (menos extremos, mais difíceis), com a heterogeneidade do estado e com a qualidade da DN e da DO no interior.
+  - O modelo é **robusto a ruído de rótulo no treino**, e os pares duvidosos do teste não inflam a AUROC. Não é possível descartar um viés vindo dos óbitos sem par.
+  - A diferença residual é compatível com os ~15% de óbitos sem par verdadeiro, de perfil diferente; com a heterogeneidade do estado; e com a qualidade da DN e da DO no interior.
 - **H2 confirmada em parte.** O modelo pré-parto perde discriminação (ΔAUROC = 0,066) e muita AUPRC, mas mantém **AUROC 0,890** e benefício líquido positivo.
   - **Uso adequado:** na admissão, com o parto iminente, para decidir transferência *in utero* para uma maternidade com UTI neonatal.
   - Não serve para triagem precoce, porque a idade gestacional do parto e as consultas acumuladas não são conhecidas semanas antes.
 - **H3 não confirmada.** A calibração na baixa escolaridade não difere da do ensino superior.
   - O modelo B subestima o risco para mães brancas e para o interior.
-  - **No interior**, há uma explicação alternativa: o pareamento é menor (88,0% contra 94,3%). Ela só produziria O/E > 1 se a completude mudasse entre os anos, o que não foi testado.
-  - **Para raça/cor**, o pareamento é quase uniforme, então o linkage não explica a diferença.
-- **Calibração e *drift*.** A inclinação ≈ 1 mostra boa calibração no sentido fraco. A calibração absoluta, porém, depende da completude do linkage e do aumento da TMN em 2023; um uso real exigiria recalibração periódica.
+  - **No interior**, testamos o linkage diferencial: o pareamento é menor lá (88,0% contra 94,3%), mas a completude subiu igualmente nas duas regiões em 2023, e isso **não explica** a diferença de O/E. Restam fatores regionais.
+  - **Para mães brancas**, o pareamento por raça/cor do recém-nascido é quase uniforme. A evidência é indireta, porque a DO não informa a raça da mãe. O SHAP mostra que o modelo B usa raça/cor e escolaridade como substitutos do risco.
+- **XAI:** as explicações são aditivas (verificadas), estáveis entre algoritmos e amostras e clinicamente plausíveis. A forma de U das consultas lembra que SHAP é associação, não causa.
+- **Calibração e *drift*.** A curva e a inclinação ≈ 1 indicam boa calibração. A calibração absoluta, porém, depende da completude do linkage e do aumento da TMN em 2023, e a isotônica de 2022 chegou a piorá-la um pouco no teste; um uso real exigiria recalibração periódica.
 - **Limitações:**
   - ~15% dos óbitos sem par verdadeiro;
   - validação temporal, mas não externa;
@@ -313,16 +357,17 @@ A tabela completa, com especificidade, VPN, Brier e todos os IC, está em [`figu
 - **Trabalhos futuros:**
   - validação em outras UFs;
   - etapa probabilística no linkage;
-  - completude do linkage por ano e região;
+  - investigação dos fatores regionais que explicam a subestimação no interior;
   - avaliação de impacto com gestores.
 
 ## 6. Reprodução
 
 ```bash
 uv venv .venv -p 3.12 && uv pip install -p .venv -r requirements.txt
-.venv/bin/python -m pytest                      # 20 testes (linkage, preprocess, modelos, avaliação, complementares)
+.venv/bin/python -m pytest                      # 24 testes (linkage, preprocess, modelos, avaliação, complementares, XAI)
 .venv/bin/python -m src.experimento             # download + linkage + modelos + avaliação + complementares (~55 min, 32 núcleos)
-.venv/bin/python -m src.experimento --complementares   # refaz só as análises complementares (~17 min)
+.venv/bin/python -m src.experimento --complementares   # refaz só as análises complementares (~20 min)
+.venv/bin/python -m src.experimento --atualizar        # só as partes baratas + XAI (~5 min; modelos em cache)
 .venv/bin/jupyter nbconvert --to notebook --execute --inplace notebook/mortalidade_neonatal_rj.ipynb
 .venv/bin/python relatorio/gerar_numeros.py && (cd relatorio && latexmk -pdf main.tex)
 .venv/bin/python slides/gerar_slides.py
@@ -336,6 +381,7 @@ uv venv .venv -p 3.12 && uv pip install -p .venv -r requirements.txt
 | `src/models.py` | LR, XGBoost, LightGBM, Optuna, recalibração isotônica |
 | `src/evaluate.py` | métricas, bootstrap, ΔAUC pareado, calibração, subgrupos |
 | `src/complementares.py` | viés do linkage, sensibilidade, calibração fraca, curva de decisão, premissas |
+| `src/explicabilidade.py` | XAI: SHAP exato, dependência, explicações locais, estabilidade, atributos sensíveis |
 | `src/experimento.py` | experimento completo → `data/resultados.pkl` |
 | `manifesto_dados.csv` | URL, tamanho, SHA-256 e data de cada arquivo do DATASUS |
 | `slides/gerar_apresentacao_tema.py` | preenche o modelo .odp da disciplina |

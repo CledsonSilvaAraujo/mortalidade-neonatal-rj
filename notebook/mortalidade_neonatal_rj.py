@@ -48,6 +48,7 @@ import lightgbm, optuna, shap, sklearn, xgboost
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from IPython.display import display
 from sklearn.metrics import precision_recall_curve, roc_curve
 
 from src import download, evaluate, experimento, linkage, models, preprocess
@@ -446,23 +447,48 @@ print("TMN por amostra (‰):", {k: round(v, 2) for k, v in C["tmn_por_amostra"]
 cal_tab.round(3)
 
 # %% [markdown]
-# ### 5.7 Utilidade clínica: curva de decisão
-# O benefício líquido é $NB(p_t) = \frac{VP}{n} - \frac{FP}{n}\cdot\frac{p_t}{1-p_t}$ (Vickers e Elkin, 2006), comparado às
-# estratégias de tratar todos e de tratar nenhum. O limiar $p_t$ expressa quantos falsos alarmes se aceitam por
-# óbito identificado. Com $p_t = 5\%$, por exemplo, aceitam-se 19 falsos alarmes para cada verdadeiro.
+# ### 5.7 Curva de calibração e utilidade clínica
+# - **Calibração** (painel da esquerda): mortalidade observada × prevista em 20 faixas de risco (quantis), em
+#   escala log, para a probabilidade bruta e a recalibrada. Intercepto e inclinação são calibração "fraca"; a
+#   curva é o nível recomendado por Van Calster et al.
+# - **Curva de decisão** (painel da direita): benefício líquido $NB(p_t) = \frac{VP}{n} - \frac{FP}{n}\cdot\frac{p_t}{1-p_t}$
+#   (Vickers e Elkin, 2006).
+#   - Com prevalência de 0,8%, "tratar todos" tem benefício negativo acima de $p_t$ ≈ 0,8%, então superá-la é
+#     trivial. A comparação relevante é com **tratar nenhum**.
+#   - A faixa sombreada, 2%–10%, corresponde a aceitar de 9 a 49 falsos alarmes por óbito identificado. É uma
+#     faixa plausível para decidir uma transferência *in utero*, que tem custo e risco, mas é muito menos grave
+#     do que um óbito evitável sem UTI.
 
 # %%
-fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.6), sharey=True)
-for ax, conj in zip(axes, preprocess.CONJUNTOS):
-    d = C["decisao"][conj]
-    ax.plot(d["limiar"] * 100, d["modelo"] * 1000, color=COR["XGBoost"], label="XGBoost recalibrado")
-    ax.plot(d["limiar"] * 100, d["tratar todos"] * 1000, color=COR["LR"], ls="--", label="tratar todos")
-    ax.axhline(0, color=TINTA2, lw=1, label="tratar nenhum")
-    ax.set(xlabel="Limiar de risco $p_t$ (%)", ylim=(-1, 9))
-    ax.set_title(f"XGBoost · {NOME_CONJ[conj]}", loc="left", fontsize=10)
-axes[0].set_ylabel("Benefício líquido (por mil nascidos vivos)"); axes[0].legend(fontsize=8)
-fig.savefig(FIG / "curva_decisao.png")
-pd.concat({NOME_CONJ[c]: d.set_index("limiar").loc[[0.01, 0.02, 0.05, 0.1, 0.2]] for c, d in C["decisao"].items()}).round(5)
+def curva_cal(y, p, n=20):
+    d = pd.DataFrame({"y": y, "p": p})
+    d["f"] = pd.qcut(d["p"].rank(method="first"), n, labels=False)
+    return d.groupby("f").agg(previsto=("p", "mean"), observado=("y", "mean"))
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.9))
+for conj, cor in [("A_completo", COR["XGBoost"]), ("B_pre_parto", COR["LR"])]:
+    for t, ls, mk in [("calibrado", "-", "o"), ("bruto", ":", "")]:
+        c = curva_cal(y_te, R["predicoes"][(conj, "XGBoost")][t])
+        ax1.plot(c["previsto"], c["observado"], ls=ls, marker=mk, ms=3.5, color=cor, lw=1.6,
+                 label=f"{NOME_CONJ[conj]} · {t}")
+lim = [3e-4, 0.6]
+ax1.plot(lim, lim, color=GRADE, lw=1)
+ax1.set(xscale="log", yscale="log", xlim=lim, ylim=lim, xlabel="Risco previsto (média da faixa)",
+        ylabel="Mortalidade observada")
+ax1.set_title("Curva de calibração (20 faixas)", loc="left", fontsize=10); ax1.legend(fontsize=7.5)
+ax2.axvspan(2, 10, color=GRADE, alpha=0.5, lw=0)
+for conj, cor in [("A_completo", COR["XGBoost"]), ("B_pre_parto", COR["LR"])]:
+    d = C["decisao"][conj]; d = d[d["limiar"] <= 0.2]
+    ax2.plot(d["limiar"] * 100, d["modelo"] * 1000, color=cor, label=f"XGBoost · {NOME_CONJ[conj]}")
+d = C["decisao"]["A_completo"]; d = d[d["limiar"] <= 0.2]
+ax2.plot(d["limiar"] * 100, d["tratar todos"] * 1000, color=TINTA2, ls="--", lw=1.2, label="tratar todos")
+ax2.axhline(0, color=TINTA, lw=1, label="tratar nenhum")
+ax2.set(xlabel="Limiar de risco $p_t$ (%)", ylabel="Benefício líquido (por mil NV)", ylim=(-1, 9), xlim=(0, 20))
+ax2.text(6, 8.3, "faixa clínica\n(9–49 falsos alarmes\npor óbito)", ha="center", fontsize=7.5, color=TINTA2, va="top")
+ax2.set_title("Curva de decisão", loc="left", fontsize=10); ax2.legend(fontsize=7.5, loc="upper right", bbox_to_anchor=(1, 0.8))
+fig.tight_layout()
+fig.savefig(FIG / "calibracao_decisao.png")
+pd.concat({NOME_CONJ[c]: d.set_index("limiar").loc[[0.02, 0.05, 0.1]] for c, d in C["decisao"].items()}).round(5)
 
 # %% [markdown]
 # ### 5.8 Viés do linkage: óbitos pareados × não pareados
@@ -504,7 +530,87 @@ sens.to_csv(FIG / "sensibilidade_linkage.csv")
 sens.round(4)
 
 # %% [markdown]
-# ### 5.10 Avaliação das premissas
+# ### 5.10 Explicabilidade (XAI)
+# O SHAP (`TreeExplainer`) decompõe o log-odds previsto de cada nascimento em contribuições aditivas das
+# variáveis: $\text{logit}\,\hat p = \phi_0 + \sum_j \phi_j$. A análise tem quatro partes:
+# 1. **Global:** importância média |SHAP| (seção 5.4).
+# 2. **Dependência:** SHAP em função do valor da variável. O efeito aprendido faz sentido clinicamente?
+# 3. **Local:** explicação de casos individuais, isto é, por que o modelo acertou ou errou.
+# 4. **Estabilidade e atributos sensíveis:** o ranking muda entre algoritmos ou amostras? Quanto raça/cor e
+#    escolaridade pesam nas explicações?
+
+# %%
+X_ = C["xai"]
+fig, axes = plt.subplots(2, 3, figsize=(11, 5.6))
+for i, conj in enumerate(preprocess.CONJUNTOS):
+    for j, (v, d) in enumerate(X_["dependencia"][conj].items()):
+        ax = axes[i, j]
+        d = d.dropna()
+        amostra = d.sample(min(6000, len(d)), random_state=0)
+        ax.scatter(amostra["x"], amostra["shap"], s=4, alpha=0.25, color=COR["LR"], linewidths=0)
+        m = d.groupby(d["x"].round(0 if v != "PESO" else -2))["shap"].median()
+        m = m[d.groupby(d["x"].round(0 if v != "PESO" else -2)).size() >= 30]
+        ax.plot(m.index, m.values, color=COR["XGBoost"], lw=2)
+        ax.axhline(0, color=GRADE, lw=1)
+        ax.set_xlabel(preprocess.ROTULOS[v]); ax.set_ylabel("SHAP (log-odds)" if j == 0 else "")
+        ax.set_title(NOME_CONJ[conj] if j == 0 else "", loc="left", fontsize=10)
+fig.tight_layout()
+fig.savefig(FIG / "xai_dependencia.png")
+
+# %% [markdown]
+# **Explicações locais.** São três casos do teste de 2023, no modelo completo: o óbito de maior risco previsto,
+# um óbito que o modelo não sinalizou (falso negativo mediano) e o sobrevivente de maior risco previsto (falso
+# positivo). O ponto de partida é o risco médio ($\phi_0$), e cada barra soma ou subtrai log-odds.
+
+# %%
+CODIGOS = {"Anomalia congênita": {"1": "sim", "2": "não", "9": "ignorado"},
+           "Sexo": {"1": "masculino", "2": "feminino"}, "Tipo de gravidez": {"1": "única", "2": "dupla"},
+           "Tipo de parto": {"1": "vaginal", "2": "cesáreo"}}
+
+
+def legivel(var, valor):
+    if var in CODIGOS:
+        return CODIGOS[var].get(str(valor), str(valor))
+    try:
+        v = float(valor)
+    except ValueError:
+        return str(valor)
+    txt = f"{v:.0f}"
+    return txt + " g" if var == "Peso ao nascer" else (txt + " sem" if var == "Semanas de gestação" else txt)
+
+
+loc = X_["locais"]
+fig, axes = plt.subplots(1, 3, figsize=(12, 3.4))
+for ax, (nome, c) in zip(axes, loc["casos"].items()):
+    t = c["top"].iloc[::-1]
+    rot = [f"{r.variavel} = {legivel(r.variavel, r.valor)}" for r in t.itertuples()]
+    ax.barh(rot, t["shap"], color=[COR["XGBoost"] if v > 0 else COR["LR"] for v in t["shap"]], height=0.6)
+    ax.axvline(0, color=TINTA2, lw=1)
+    desfecho = "óbito" if c["obito"] else "sobreviveu"
+    ax.set_title(f"{nome}\nrisco previsto {100 * c['prob_calibrada']:.1f}% · {desfecho}".replace(".", ","),
+                 loc="left", fontsize=9)
+    ax.set_xlabel("contribuição SHAP (log-odds)"); ax.tick_params(axis="y", labelsize=8); ax.grid(axis="y", visible=False)
+fig.tight_layout()
+fig.savefig(FIG / "xai_local.png")
+print(f"Risco de base φ0: {100 * loc['base_prob']:.2f}% | erro de aditividade máx.:",
+      max(c["aditividade_erro"] for c in loc["casos"].values()))
+pd.concat({k: v["top"].set_index("variavel") for k, v in loc["casos"].items()}).round(3)
+
+# %% [markdown]
+# **Estabilidade e atributos sensíveis.**
+
+# %%
+est = pd.DataFrame({NOME_CONJ[c]: {k: v for k, v in e.items() if k != "importancia_lgbm"}
+                    for c, e in X_["estabilidade"].items()}).T
+sens_attr = pd.DataFrame({NOME_CONJ[c]: {preprocess.ROTULOS[k]: v for k, v in s_["fracao_importancia"].items()}
+                          for c, s_ in X_["sensiveis"].items()}).T
+est.to_csv(FIG / "xai_estabilidade.csv"); sens_attr.to_csv(FIG / "xai_sensiveis.csv")
+display(est.round(3)); display((100 * sens_attr).round(1))
+X_["sensiveis"]["B_pre_parto"]["RACACORMAE"].rename(index={"1": "Branca", "2": "Preta", "3": "Amarela", "4": "Parda",
+                                                            "5": "Indígena", "ausente": "Ignorada"}).round(3)
+
+# %% [markdown]
+# ### 5.11 Avaliação das premissas
 # - **Colinearidade (regressão logística):** as contagens do histórico obstétrico são quase uma soma umas das
 #   outras (gestações ≈ partos + perdas). O VIF mede quanto isso infla a variância dos coeficientes. A
 #   colinearidade afeta a interpretação dos coeficientes, mas não a predição. A penalização L2 estabiliza o ajuste,
